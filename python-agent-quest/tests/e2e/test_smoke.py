@@ -44,3 +44,24 @@ def test_level1_pass_flow(server):
         page.wait_for_selector("#message.pass", timeout=10000)
         assert "过关" in page.inner_text("#message")
         browser.close()
+
+
+def test_navigate_back_to_passed_level(server):
+    from server.levels.loader import load_levels
+
+    solution = load_levels()[0].solution
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(BASE)
+        page.wait_for_selector("#level-title")
+        page.evaluate(f"editor.setValue({json.dumps(solution)})")
+        page.click("#run-btn")
+        page.wait_for_selector("#message.pass", timeout=10000)
+        # 等过关后的自动跳转（1.5s）落定到第 2 关
+        page.wait_for_timeout(2000)
+        assert "第 2 关" in page.inner_text("#level-title")
+        # 点击左侧关卡列表回到第 1 关
+        page.click("#parts li:first-child")
+        assert "第 1 关" in page.inner_text("#level-title")
+        browser.close()

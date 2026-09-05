@@ -22,6 +22,10 @@
   .part.done { color: #a6e3a1; }
   .part::before { content: "○ "; }
   .part.done::before { content: "● "; }
+  .part { cursor: pointer; }
+  .part:hover { color: #cdd6f4; }
+  .part.current { font-weight: bold; }
+  .part.current::after { content: " ← 当前"; font-size: 12px; color: #89b4fa; }
   .CodeMirror { flex: 1; min-height: 300px; border-radius: 8px; font-size: 14px; }
   #run-btn { padding: 10px; font-size: 15px; border: none; border-radius: 8px; background: #89b4fa; color: #1e1e2e; cursor: pointer; font-weight: bold; }
   #run-btn:hover { background: #b4befe; }
@@ -90,6 +94,7 @@ function showLevel(i) {
   editor.setValue(lv.starter_code);
   document.getElementById("output").textContent = "";
   document.getElementById("message").textContent = "";
+  renderProgress();
 }
 
 function renderProgress() {
@@ -98,10 +103,11 @@ function renderProgress() {
     "进度 " + passed.length + "/" + levels.length;
   const ul = document.getElementById("parts");
   ul.innerHTML = "";
-  levels.forEach(lv => {
+  levels.forEach((lv, i) => {
     const li = document.createElement("li");
-    li.className = "part" + (passed.includes(lv.id) ? " done" : "");
+    li.className = "part" + (passed.includes(lv.id) ? " done" : "") + (i === current ? " current" : "");
     li.textContent = lv.title;
+    li.addEventListener("click", () => showLevel(i));
     ul.appendChild(li);
   });
 }
