@@ -26,7 +26,7 @@ def run_code(source: str, timeout: int = DEFAULT_TIMEOUT) -> RunResult:
             [sys.executable, "main.py"],
             cwd=workdir,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=timeout,
         )
         return RunResult(proc.stdout, proc.stderr, proc.returncode, False, workdir)
