@@ -43,14 +43,14 @@ def run(req: RunRequest):
     lv = LEVELS.get(req.level_id)
     if lv is None:
         raise HTTPException(status_code=404, detail="关卡不存在")
-    result = run_code(req.code)
+    result = run_code(req.code, timeout=lv.timeout)
     try:
         if result.timed_out:
             return {
                 "passed": False,
                 "stdout": "",
                 "stderr": "",
-                "message": "运行超时（超过 5 秒），检查是不是有死循环？",
+                "message": f"运行超时（超过 {lv.timeout} 秒），检查是不是有死循环？",
             }
         passed, message = lv.judge(req.code, result)
         return {

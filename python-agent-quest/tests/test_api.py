@@ -51,7 +51,7 @@ def test_run_endpoint_cleans_up_workdir(monkeypatch, tmp_path):
     workdir.mkdir()
     (workdir / "a.txt").write_text("hi")
     fake = RunResult("你是小K，一个代码助手。\n", "", 0, False, str(workdir))
-    monkeypatch.setattr(main_mod, "run_code", lambda code: fake)
+    monkeypatch.setattr(main_mod, "run_code", lambda code, timeout=5: fake)
     resp = client.post("/api/run", json={"level_id": 1, "code": "xxx"})
     assert resp.status_code == 200
     assert not os.path.exists(workdir)

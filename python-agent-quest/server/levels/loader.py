@@ -10,6 +10,9 @@ JudgeFn = Callable[[str, RunResult], "tuple[bool, str]"]
 REQUIRED_ATTRS = ["ID", "TITLE", "STORY", "KNOWLEDGE", "STARTER_CODE", "SOLUTION", "judge"]
 
 
+DEFAULT_TIMEOUT = 5
+
+
 @dataclass
 class Level:
     id: int
@@ -19,6 +22,7 @@ class Level:
     starter_code: str
     solution: str
     judge: JudgeFn
+    timeout: int = DEFAULT_TIMEOUT
 
 
 def load_levels() -> list[Level]:
@@ -34,6 +38,7 @@ def load_levels() -> list[Level]:
                 raise ValueError(f"关卡模块 {info.name} 缺少字段 {attr}")
         levels.append(
             Level(mod.ID, mod.TITLE, mod.STORY, mod.KNOWLEDGE,
-                  mod.STARTER_CODE, mod.SOLUTION, mod.judge)
+                  mod.STARTER_CODE, mod.SOLUTION, mod.judge,
+                  getattr(mod, "TIMEOUT", DEFAULT_TIMEOUT))
         )
     return sorted(levels, key=lambda lv: lv.id)
