@@ -35,3 +35,19 @@ def test_correct_output_without_try_fails():
     passed, msg = lv.judge(code, r)
     assert not passed
     assert "try" in msg
+
+
+def test_except_tuple_with_value_error_passes():
+    code = (
+        'raw_results = ["42", "abc", "7"]\n'
+        "for raw in raw_results:\n"
+        "    try:\n"
+        "        number = int(raw)\n"
+        '        print(f"结果：{number}")\n'
+        "    except (ValueError, TypeError):\n"
+        '        print(f"跳过无效结果：{raw}")\n'
+    )
+    lv = _level()
+    r = run_code(code)
+    passed, msg = lv.judge(code, r)
+    assert passed, msg

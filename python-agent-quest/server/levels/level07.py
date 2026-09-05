@@ -73,11 +73,15 @@ def judge(source: str, result: RunResult) -> tuple[bool, str]:
     try_nodes = [node for node in ast.walk(tree) if isinstance(node, ast.Try)]
     if not try_nodes:
         return False, "结果对了，但本关要求用 try/except 容错，不能用 if 预判或直接打印答案"
-    catches_value_error = any(
-        isinstance(handler.type, ast.Name) and handler.type.id == "ValueError"
-        for node in try_nodes
-        for handler in node.handlers
-    )
-    if not catches_value_error:
+    def catches_value_error(handler: ast.ExceptHandler) -> bool:
+        t = handler.type
+        if isinstance(t, ast.Name) and t.id == "ValueError":
+            return True
+        if isinstance(t, ast.Tuple):  # except (ValueError, TypeError): 这种写法
+            return any(isinstance(e, ast.Name) and e.id == "ValueError" for e in t.elts)
+        return False
+
+    catches = any(catches_value_error(handler) for node in try_nodes for handler in node.handlers)
+    if not catches:
         return False, "except 要捕获指定异常 ValueError，别裸写 except"
     return True, "过关！小K 遇到工具故障不会崩了。"

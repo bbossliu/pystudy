@@ -76,7 +76,9 @@ async function loadLevels() {
   const resp = await fetch("/api/levels");
   levels = await resp.json();
   renderProgress();
-  showLevel(0);
+  const passed = getProgress();
+  const next = levels.findIndex(lv => !passed.includes(lv.id));
+  showLevel(next === -1 ? levels.length - 1 : next);
 }
 
 function showLevel(i) {
