@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>造一个 Agent · Python 闯关</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #1e1e2e; color: #e0e0e0; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #181825; }
+  header h1 { font-size: 18px; }
+  #progress { font-size: 14px; color: #a6e3a1; }
+  main { display: flex; gap: 16px; padding: 16px; height: calc(100vh - 54px); }
+  #left { width: 38%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  #right { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .card { background: #313244; border-radius: 8px; padding: 14px 16px; }
+  .card h2 { font-size: 16px; margin-bottom: 8px; color: #89b4fa; }
+  .card h3 { font-size: 14px; margin-bottom: 8px; color: #f9e2af; }
+  .card p, .card .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  .part { list-style: none; font-size: 14px; padding: 3px 0; color: #6c7086; }
+  .part.done { color: #a6e3a1; }
+  .part::before { content: "○ "; }
+  .part.done::before { content: "● "; }
+  .CodeMirror { flex: 1; min-height: 300px; border-radius: 8px; font-size: 14px; }
+  #run-btn { padding: 10px; font-size: 15px; border: none; border-radius: 8px; background: #89b4fa; color: #1e1e2e; cursor: pointer; font-weight: bold; }
+  #run-btn:hover { background: #b4befe; }
+  #output { background: #11111b; border-radius: 8px; padding: 10px; min-height: 60px; max-height: 160px; overflow-y: auto; font-size: 13px; white-space: pre-wrap; }
+  #message { font-size: 14px; min-height: 22px; }
+  #message.pass { color: #a6e3a1; }
+  #message.fail { color: #f38ba8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>造一个 Agent · Python 闯关</h1>
+  <div id="progress"></div>
+</header>
+<main>
+  <section id="left">
+    <div class="card"><h2 id="level-title"></h2><p id="story"></p></div>
+    <div class="card"><h3>知识卡 · Java 对照</h3><div class="body" id="knowledge"></div></div>
+    <div class="card"><h3>我的 Agent 装配进度</h3><ul id="parts"></ul></div>
+  </section>
+  <section id="right">
+    <textarea id="code"></textarea>
+    <button id="run-btn">运行</button>
+    <pre id="output"></pre>
+    <div id="message"></div>
+  </section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script>
+let levels = [];
+let current = 0;
+
+const editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+  mode: "python", theme: "monokai", lineNumbers: true, indentUnit: 4,
+});
+window.editor = editor;
+
+function getProgress() {
+  return JSON.parse(localStorage.getItem("quest_progress") || "[]");
+}
+
+function saveProgress(id) {
+  const p = getProgress();
+  if (!p.includes(id)) {
+    p.push(id);
+    localStorage.setItem("quest_progress", JSON.stringify(p));
+  }
+}
+
+async function loadLevels() {
+  const resp = await fetch("/api/levels");
+  levels = await resp.json();
+  renderProgress();
+  showLevel(0);
+}
+
+function showLevel(i) {
+  current = i;
+  const lv = levels[i];
+  document.getElementById("level-title").textContent = "第 " + lv.id + " 关 · " + lv.title;
+  document.getElementById("story").textContent = lv.story;
+  document.getElementById("knowledge").textContent = lv.knowledge;
+  editor.setValue(lv.starter_code);
+  document.getElementById("output").textContent = "";
+  document.getElementById("message").textContent = "";
+}
+
+function renderProgress() {
+  const passed = getProgress();
+  document.getElementById("progress").textContent =
+    "进度 " + passed.length + "/" + levels.length;
+  const ul = document.getElementById("parts");
+  ul.innerHTML = "";
+  levels.forEach(lv => {
+    const li = document.createElement("li");
+    li.className = "part" + (passed.includes(lv.id) ? " done" : "");
+    li.textContent = lv.title;
+    ul.appendChild(li);
+  });
+}
+
+document.getElementById("run-btn").addEventListener("click", async () => {
+  const lv = levels[current];
+  const resp = await fetch("/api/run", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({level_id: lv.id, code: editor.getValue()}),
+  });
+  const data = await resp.json();
+  document.getElementById("output").textContent =
+    data.stdout + (data.stderr ? "\n" + data.stderr : "");
+  const msg = document.getElementById("message");
+  msg.textContent = data.message;
+  msg.className = data.passed ? "pass" : "fail";
+  if (data.passed) {
+    saveProgress(lv.id);
+    renderProgress();
+    if (current + 1 < levels.length) {
+      setTimeout(() => showLevel(current + 1), 1500);
+    }
+  }
+});
+
+loadLevels();
+</script>
+</body>
+</html>
