@@ -127,14 +127,21 @@ def _find_invoke(tree: ast.AST) -> ast.FunctionDef | None:
     return None
 
 
-def _calls_outside_loops(fn: ast.FunctionDef, fors: list[ast.For]) -> list[ast.Call]:
+def _is_tool_call(node: ast.Call) -> bool:
+    # 只把「真正执行工具」的调用算进来：self.tools[name](...)（func 是下标）
+    # 或对工具变量本身的调用（tool()，func 是名字）。
+    # self.tools.get(name) 这类查找（func 是属性）只是取值，不算工具调用。
+    return isinstance(node.func, (ast.Subscript, ast.Name))
+
+
+def _tool_calls_outside_loops(fn: ast.FunctionDef, fors: list[ast.For]) -> list[ast.Call]:
     inside = set()
     for loop in fors:
         for node in ast.walk(loop):
             inside.add(id(node))
     return [
         node for node in ast.walk(fn)
-        if isinstance(node, ast.Call) and id(node) not in inside
+        if isinstance(node, ast.Call) and id(node) not in inside and _is_tool_call(node)
     ]
 
 
@@ -148,19 +155,19 @@ def judge(source: str, result: RunResult) -> tuple[bool, str]:
     invoke = _find_invoke(tree)
     if invoke is None:
         return False, (
-            "结果对了，但本关要求定义 class ToolRuntime（含 register / guard / invoke 方法），"
+            "结果对了，但本关要求定义 class ToolRuntime 并实现 invoke 方法，"
             "不能直接打印答案"
         )
     fors = [node for node in ast.walk(invoke) if isinstance(node, ast.For)]
     if not fors:
         return False, "invoke 里要先用 for 循环依次问所有 guard——流水线从守卫开始"
-    outside_calls = _calls_outside_loops(invoke, fors)
-    if not outside_calls:
+    tool_calls = _tool_calls_outside_loops(invoke, fors)
+    if not tool_calls:
         return False, (
             "invoke 里要在守卫放行之后真正调用工具（self.tools[name](...)）并返回结果"
         )
     first_loop = min(node.lineno for node in fors)
-    first_call = min(node.lineno for node in outside_calls)
+    first_call = min(node.lineno for node in tool_calls)
     if first_call < first_loop:
         return False, (
             "顺序反了！guard 循环必须出现在工具调用之前——"

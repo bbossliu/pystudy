@@ -17,7 +17,8 @@ KNOWLEDGE = """\
 1) 源码位置
   packages/core/session/src/index.ts:724 的 deriveMessages()；
   surface.ts:83 的 deriveEventMessage() 纯函数：user/message 原样投影、
-  空 assistant 丢弃、其余事件忽略。
+  空 assistant 丢弃；tool/result 也会投影成消息（surface.ts:106-108），
+  本关简化为忽略；其余事件（turn/step 边界、chunk、usage 等）不投影。
   注意：dsh 源码是 TypeScript 写的，我们用 Python 模仿它的机制；
   TS 语法看不懂时，去查笔记里的《附录-TS语法速查》。
 
@@ -32,8 +33,9 @@ KNOWLEDGE = """\
   当前状态 = 把事件流 fold 出来的视图。改视图逻辑不用改数据，重放就行。
 
 5) 空 assistant 为什么丢弃
-  一次 step 里模型可能只调工具不说话（content 为空），这种消息投影给模型没意义，
-  还会扰乱对话节奏——所以投影层直接过滤掉。
+  空内容的 assistant 消息只为托管 max-tokens step 的 usage 而存在
+  （surface.ts:99-104 附近注释），本身没有要对模型说的话；
+  若投影进去，会往对话记录里塞进一个没有内容的 assistant 轮次——所以过滤掉。
 """
 
 STARTER_CODE = """\

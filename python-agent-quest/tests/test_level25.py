@@ -54,3 +54,38 @@ def test_wrong_order_fails():
     passed, msg = lv.judge(code, r)
     assert not passed
     assert "顺序反了" in msg
+
+
+def test_get_lookup_before_guards_passes():
+    # 先用 .get() 查找工具变量，再跑 guard 循环，最后调用工具变量——
+    # .get() 只是查找不是工具调用，这种合理写法不应被误判为「顺序反了」
+    code = (
+        "class ToolRuntime:\n"
+        "    def __init__(self):\n"
+        "        self.tools = {}\n"
+        "        self.guards = []\n"
+        "\n"
+        "    def register(self, name, fn):\n"
+        "        self.tools[name] = fn\n"
+        "\n"
+        "    def guard(self, fn):\n"
+        "        self.guards.append(fn)\n"
+        "\n"
+        "    def invoke(self, name):\n"
+        "        tool = self.tools.get(name)\n"
+        "        for g in self.guards:\n"
+        "            reason = g(name)\n"
+        "            if reason is not None:\n"
+        "                return f\"已否决：{reason}\"\n"
+        "        return tool()\n"
+        "\n"
+        "runtime = ToolRuntime()\n"
+        "runtime.register(\"删除文件\", lambda: \"已删除\")\n"
+        "runtime.guard(lambda name: None)\n"
+        "runtime.guard(lambda name: \"高危操作\" if name == \"删除文件\" else None)\n"
+        "print(runtime.invoke(\"删除文件\"))\n"
+    )
+    lv = _level()
+    r = run_code(code)
+    passed, msg = lv.judge(code, r)
+    assert passed, msg
