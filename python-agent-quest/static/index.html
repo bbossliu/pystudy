@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>造一个 Agent · Python 闯关</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    background: #1e1e2e; color: #cdd6f4;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  /* ---- 顶栏：标题 + 进度条 + 进度文本 ---- */
+  header {
+    display: flex; align-items: center; gap: 24px;
+    height: 60px; padding: 0 24px; flex-shrink: 0;
+    background: #181825; border-bottom: 1px solid #313244;
+  }
+  header h1 { font-size: 17px; white-space: nowrap; }
+  .progress-wrap { flex: 1; display: flex; align-items: center; gap: 12px; max-width: 560px; margin-left: auto; }
+  #progress-bar { flex: 1; height: 8px; background: #313244; border-radius: 4px; overflow: hidden; }
+  #progress-fill {
+    height: 100%; width: 0%;
+    background: #a6e3a1; border-radius: 4px;
+    transition: width .4s ease;
+  }
+  /* 过关动效：一次 0.3s 的亮度脉冲，克制 */
+  #progress-fill.pulse { animation: pass-pulse .3s ease; }
+  @keyframes pass-pulse { 50% { filter: brightness(1.7); } }
+  #progress { font-size: 13px; color: #a6e3a1; white-space: nowrap; }
+  /* ---- 整体布局：sidebar + 主区 ---- */
+  main { flex: 1; display: flex; min-height: 0; }
+  #sidebar {
+    width: 250px; flex-shrink: 0;
+    background: #181825; border-right: 1px solid #313244;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-head { padding: 16px 18px 10px; font-size: 14px; font-weight: bold; color: #89b4fa; }
+  #parts { list-style: none; flex: 1; overflow-y: auto; padding: 4px 10px 16px; }
+  .part {
+    font-size: 13px; line-height: 1.5; padding: 7px 10px;
+    border-radius: 6px; color: #6c7086; cursor: pointer;
+  }
+  .part::before { content: "○ "; }
+  .part.done { color: #a6e3a1; }
+  .part.done::before { content: "● "; }
+  .part:hover { background: #313244; color: #cdd6f4; }
+  .part.current { background: #313244; color: #cdd6f4; font-weight: bold; }
+  /* ---- 主区卡片流 ---- */
+  #content {
+    flex: 1; overflow-y: auto;
+    padding: 20px 24px 60px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .card {
+    background: #313244; border-radius: 12px; padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+  }
+  .card h2 { font-size: 17px; margin-bottom: 10px; color: #89b4fa; }
+  .card h3 { font-size: 14px; margin-bottom: 10px; color: #f9e2af; }
+  .card p, .card .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  #diagram-card .body { overflow-x: auto; }
+  /* ---- 编辑器 + 运行 ---- */
+  #editor-card { padding: 12px; }
+  .CodeMirror {
+    height: 320px; border-radius: 8px; font-size: 14px;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  #run-btn {
+    margin-top: 12px; width: 100%; padding: 11px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 15px; font-weight: bold;
+    border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e; cursor: pointer;
+    transition: background .15s ease;
+  }
+  #run-btn:hover:not(:disabled) { background: #b4befe; }
+  #run-btn:disabled { opacity: .65; cursor: not-allowed; }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(30, 30, 46, .3); border-top-color: #1e1e2e;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* ---- 输出与提示 ---- */
+  #output {
+    background: #11111b; border-radius: 8px; padding: 12px;
+    min-height: 60px; max-height: 200px; overflow-y: auto;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  #message { font-size: 14px; min-height: 22px; padding: 0 4px; }
+  #message.pass { color: #a6e3a1; }
+  #message.fail { color: #f38ba8; }
+  /* markdown 渲染后不再依赖 pre-wrap（避免 <br> 与换行符叠加出双倍空行），降级纯文本时保留默认 pre-wrap */
+  #knowledge.rendered { white-space: normal; }
+  #knowledge.rendered pre.hljs { border-radius: 8px; margin: 10px 0; font-size: 13px; line-height: 1.6; }
+  #knowledge.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
+  /* ---- 宽屏（≥1280px）双栏：左栏剧情/知识卡/图，右栏编辑器 sticky ---- */
+  @media (min-width: 1280px) {
+    #content {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-content: start;
+    }
+    #content > :nth-child(1) { grid-column: 1; grid-row: 1; }
+    #content > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    #content > :nth-child(3) { grid-column: 1; grid-row: 3; }
+    /* 编辑器跨左栏三行，sticky 范围 = 左栏总高，滚动剧情/知识卡时编辑器钉在顶部 */
+    #editor-card {
+      grid-column: 2; grid-row: 1 / 4;
+      align-self: start;
+      position: sticky; top: 20px;
+    }
+    #content > :nth-child(5) { grid-column: 2; grid-row: 4; }
+    #content > :nth-child(6) { grid-column: 2; grid-row: 5; }
+  }
+  /* ---- 期末考试按钮（顶栏右侧） ---- */
+  #exam-btn {
+    padding: 8px 16px; border: none; border-radius: 8px;
+    background: #f9e2af; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap;
+  }
+  #exam-btn:hover:not(:disabled) { background: #fae8c4; }
+  #exam-btn:disabled { background: #313244; color: #6c7086; cursor: not-allowed; }
+  /* ---- 考试视图（与 #content 平级，display 切换，不动关卡区状态） ---- */
+  #exam-view {
+    flex: 1; overflow-y: auto; min-height: 0;
+    padding: 20px 24px 60px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .exam-q .stem { font-size: 14px; line-height: 1.7; white-space: pre-wrap; margin-bottom: 12px; }
+  .exam-q label {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 6px;
+    font-size: 14px; line-height: 1.5; cursor: pointer;
+  }
+  .exam-q label:hover { background: #3b3d52; }
+  .exam-q input[type="radio"] { accent-color: #89b4fa; }
+  #exam-submit, .exam-action {
+    padding: 11px 24px; border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e;
+    font-size: 15px; font-weight: bold; cursor: pointer;
+  }
+  #exam-submit:hover, .exam-action:hover { background: #b4befe; }
+  #exam-score { font-size: 56px; font-weight: bold; line-height: 1.1; }
+  #exam-score.pass { color: #a6e3a1; }
+  #exam-score.fail { color: #f38ba8; }
+  #exam-verdict { font-size: 18px; margin-top: 6px; }
+  #exam-graduate { margin-top: 10px; font-size: 14px; line-height: 1.7; color: #f9e2af; white-space: pre-wrap; }
+  .review-card { border-left: 4px solid #6c7086; }
+  .review-card.right { border-left-color: #a6e3a1; }
+  .review-card.wrong { border-left-color: #f38ba8; }
+  .review-mark { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+  .review-card.right .review-mark { color: #a6e3a1; }
+  .review-card.wrong .review-mark { color: #f38ba8; }
+  .review-line { font-size: 13px; line-height: 1.7; color: #a6adc8; }
+  .review-line b { color: #cdd6f4; font-weight: bold; }
+  .review-explain { font-size: 13px; line-height: 1.7; margin-top: 8px; color: #cdd6f4; }
+  .review-goto {
+    margin-top: 10px; padding: 7px 14px; border: none; border-radius: 6px;
+    background: #f9e2af; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer;
+  }
+  .review-goto:hover { background: #fae8c4; }
+  .exam-actions-row { display: flex; gap: 12px; }
+  /* ---- 助教聊天：右下角悬浮按钮 + 可折叠面板 ---- */
+  #chat-fab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 50;
+    padding: 12px 18px; border: none; border-radius: 999px;
+    background: #89b4fa; color: #1e1e2e; font-size: 14px; font-weight: bold;
+    cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+  }
+  #chat-fab:hover { background: #b4befe; }
+  #chat-panel {
+    position: fixed; right: 24px; bottom: 84px; z-index: 50;
+    width: 380px; max-width: calc(100vw - 48px);
+    height: 520px; max-height: calc(100vh - 140px);
+    display: flex; flex-direction: column;
+    background: #181825; border: 1px solid #313244; border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .5); overflow: hidden;
+  }
+  #chat-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid #313244;
+  }
+  #chat-head select {
+    flex: 1; min-width: 0; padding: 6px 8px;
+    background: #313244; color: #cdd6f4;
+    border: none; border-radius: 6px; font-size: 12px;
+  }
+  #chat-close, #chat-max {
+    background: none; border: none; padding: 0 4px;
+    color: #6c7086; font-size: 18px; cursor: pointer;
+  }
+  #chat-close:hover, #chat-max:hover { color: #cdd6f4; }
+  #chat-max { font-size: 15px; }
+  #chat-panel.maximized {
+    left: 24px; right: 24px; top: 24px; bottom: 24px;
+    width: auto; height: auto; max-width: none; max-height: none;
+  }
+  #chat-note {
+    padding: 10px 12px; font-size: 12px; line-height: 1.6;
+    color: #f9e2af; border-bottom: 1px solid #313244;
+  }
+  #chat-messages {
+    flex: 1; overflow-y: auto; padding: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .chat-msg {
+    max-width: 92%; padding: 8px 12px; border-radius: 10px;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+    min-width: 0; overflow-wrap: break-word;
+  }
+  .chat-msg.user { align-self: flex-end; background: #89b4fa; color: #1e1e2e; }
+  .chat-msg.assistant { align-self: flex-start; background: #313244; }
+  /* markdown 渲染后不再依赖 pre-wrap，降级纯文本时保留默认 pre-wrap */
+  .chat-msg.assistant.rendered { white-space: normal; }
+  .chat-msg.assistant.rendered pre.hljs { border-radius: 8px; margin: 8px 0; font-size: 12px; max-width: 100%; overflow-x: auto; }
+  .chat-msg.assistant.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
+  .chat-msg.assistant.rendered p { margin: 4px 0; }
+  .chat-msg.error { align-self: flex-start; padding: 2px 8px; color: #f38ba8; font-size: 12px; }
+  #chat-input-row {
+    display: flex; gap: 8px; padding: 10px 12px;
+    border-top: 1px solid #313244;
+  }
+  #chat-input {
+    flex: 1; padding: 9px 10px;
+    background: #313244; color: #cdd6f4;
+    border: none; border-radius: 8px; font-size: 13px;
+  }
+  #chat-input:focus { outline: 1px solid #89b4fa; }
+  #chat-send {
+    padding: 0 14px; border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer;
+  }
+  #chat-send:disabled { opacity: .6; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<header>
+  <h1>造一个 Agent · Python 闯关</h1>
+  <div class="progress-wrap">
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="progress"></div>
+  </div>
+  <button id="exam-btn" disabled>期末考试</button>
+</header>
+<main>
+  <aside id="sidebar">
+    <div class="sidebar-head">关卡</div>
+    <ul id="parts"></ul>
+  </aside>
+  <section id="content">
+    <div class="card"><h2 id="level-title"></h2><p id="story"></p></div>
+    <div class="card"><h3>知识卡 · Java 对照</h3><div class="body" id="knowledge"></div></div>
+    <div class="card" id="diagram-card" style="display:none"><h3>配图</h3><div class="body" id="diagram"></div></div>
+    <div class="card" id="editor-card"><textarea id="code"></textarea><button id="run-btn">运行</button></div>
+    <div class="card"><h3>输出</h3><pre id="output"></pre></div>
+    <div id="message"></div>
+  </section>
+  <section id="exam-view" style="display:none">
+    <div id="exam-paper"></div>
+    <div id="exam-result" style="display:none"></div>
+  </section>
+</main>
+<button id="chat-fab">💬 问助教</button>
+<div id="chat-panel" style="display:none">
+  <div id="chat-head">
+    <select id="chat-provider"></select>
+    <select id="chat-model"></select>
+    <button id="chat-max" title="放大">⤢</button>
+    <button id="chat-close" title="收起">×</button>
+  </div>
+  <div id="chat-note" style="display:none">未配置任何模型 key，先在服务端环境变量里配置（如 DEEPSEEK_API_KEY），再重启服务</div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <input id="chat-input" placeholder="问点这关的问题…">
+    <button id="chat-send">发送</button>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+if (window.mermaid) {
+  mermaid.initialize({startOnLoad: false, theme: "dark"});
+}
+
+// markdown-it / highlight.js 异步加载（load 事件后再拉取，CDN 慢或挂都不会阻塞页面）；
+// 加载失败时 md 保持 null，知识卡回退为 textContent 纯文本展示
+let md = null;
+
+function loadScript(src) {
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+async function initMarkdown() {
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css";
+  document.head.appendChild(css);
+  const okMd = await loadScript("https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js");
+  const okHl = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js");
+  if (!okMd || !okHl || !window.markdownit) return;
+  md = window.markdownit({
+    breaks: true,   // 纯文本卡片中的换行渲染为 <br>，保持原排版
+    linkify: false,
+    highlight: function (str, lang) {
+      if (window.hljs) {
+        try {
+          const value = (lang && hljs.getLanguage(lang))
+            ? hljs.highlight(str, {language: lang}).value
+            : hljs.highlightAuto(str).value;
+          // 返回 <pre> 开头时 markdown-it 原样输出，借此挂上 .hljs 类
+          return '<pre class="hljs"><code>' + value + "</code></pre>";
+        } catch (e) {}
+      }
+      return "";
+    },
+  });
+  // 异步就绪后重渲染当前关知识卡
+  if (levels.length) renderKnowledge(levels[current]);
+}
+window.addEventListener("load", initMarkdown);
+</script>
+<script>
+let levels = [];
+let current = 0;
+
+const editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+  mode: "python", theme: "monokai", lineNumbers: true, indentUnit: 4,
+});
+window.editor = editor;
+
+function getProgress() {
+  return JSON.parse(localStorage.getItem("quest_progress") || "[]");
+}
+
+function saveProgress(id) {
+  const p = getProgress();
+  if (!p.includes(id)) {
+    p.push(id);
+    localStorage.setItem("quest_progress", JSON.stringify(p));
+  }
+}
+
+async function loadLevels() {
+  const resp = await fetch("/api/levels");
+  levels = await resp.json();
+  renderProgress();
+  const passed = getProgress();
+  const next = levels.findIndex(lv => !passed.includes(lv.id));
+  showLevel(next === -1 ? levels.length - 1 : next);
+}
+
+function showLevel(i) {
+  current = i;
+  const lv = levels[i];
+  document.getElementById("level-title").textContent = "第 " + lv.id + " 关 · " + lv.title;
+  document.getElementById("story").textContent = lv.story;
+  renderKnowledge(lv);
+  editor.setValue(lv.starter_code);
+  document.getElementById("output").textContent = "";
+  document.getElementById("message").textContent = "";
+  renderDiagram(lv);
+  renderProgress();
+  document.getElementById("content").scrollTop = 0;
+}
+
+function renderKnowledge(lv) {
+  const box = document.getElementById("knowledge");
+  if (md) {
+    // markdown-it 默认 html: false，原文中的 HTML 一律转义，无 XSS 风险
+    box.innerHTML = md.render(lv.knowledge);
+    box.classList.add("rendered");
+  } else {
+    // 降级：CDN 加载失败时维持纯文本 + pre-wrap 的旧行为
+    box.textContent = lv.knowledge;
+    box.classList.remove("rendered");
+  }
+}
+
+function renderDiagram(lv) {
+  const card = document.getElementById("diagram-card");
+  const box = document.getElementById("diagram");
+  // 每次切关重建图区节点，避免 mermaid 积累旧 svg
+  box.innerHTML = "";
+  if (!lv.diagram) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const pre = document.createElement("pre");
+  pre.textContent = lv.diagram;
+  if (window.mermaid) {
+    pre.className = "mermaid";
+    box.appendChild(pre);
+    mermaid.run({nodes: [pre]}).catch(err => console.error("mermaid 渲染失败:", err));
+  } else {
+    // 降级：mermaid CDN 加载失败时直接展示源码（等宽文本）
+    box.appendChild(pre);
+  }
+}
+
+function renderProgress() {
+  const passed = getProgress();
+  document.getElementById("progress").textContent =
+    "进度 " + passed.length + "/" + levels.length;
+  const pct = levels.length ? Math.round(passed.length / levels.length * 100) : 0;
+  document.getElementById("progress-fill").style.width = pct + "%";
+  const ul = document.getElementById("parts");
+  ul.innerHTML = "";
+  levels.forEach((lv, i) => {
+    const li = document.createElement("li");
+    li.className = "part" + (passed.includes(lv.id) ? " done" : "") + (i === current ? " current" : "");
+    li.textContent = lv.id + ". " + lv.title;
+    li.addEventListener("click", () => showLevel(i));
+    ul.appendChild(li);
+  });
+  updateExamBtn();
+}
+
+// 过关时进度条做一次 0.3s 亮度脉冲；先移除再加类并强制 reflow，保证连过两关也能重触发
+function pulseProgress() {
+  const fill = document.getElementById("progress-fill");
+  fill.classList.remove("pulse");
+  void fill.offsetWidth;
+  fill.classList.add("pulse");
+}
+
+const runBtn = document.getElementById("run-btn");
+runBtn.addEventListener("click", async () => {
+  const lv = levels[current];
+  // loading 态：禁用 + 转圈，响应返回后（finally）恢复
+  runBtn.disabled = true;
+  runBtn.innerHTML = '<span class="spinner"></span>运行中…';
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({level_id: lv.id, code: editor.getValue()}),
+    });
+    const data = await resp.json();
+    document.getElementById("output").textContent =
+      data.stdout + (data.stderr ? "\n" + data.stderr : "");
+    const msg = document.getElementById("message");
+    msg.textContent = data.message;
+    msg.className = data.passed ? "pass" : "fail";
+    if (data.passed) {
+      saveProgress(lv.id);
+      renderProgress();
+      pulseProgress();
+      if (current + 1 < levels.length) {
+        setTimeout(() => showLevel(current + 1), 1500);
+      }
+    }
+  } catch (e) {
+    const msg = document.getElementById("message");
+    msg.textContent = "网络错误：请求没有发出去，检查服务是不是还在跑，然后重试";
+    msg.className = "fail";
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = "运行";
+  }
+});
+
+loadLevels();
+
+/* ---- 助教聊天面板 ---- */
+// 对话历史只存内存（DOM + 本数组），刷新即清空；后端是单轮调用，历史仅用于展示
+const chatHistory = [];
+let chatProviders = [];
+
+const chatFab = document.getElementById("chat-fab");
+const chatPanel = document.getElementById("chat-panel");
+const chatProviderSel = document.getElementById("chat-provider");
+const chatModelSel = document.getElementById("chat-model");
+const chatNote = document.getElementById("chat-note");
+const chatMessages = document.getElementById("chat-messages");
+const chatInput = document.getElementById("chat-input");
+const chatSend = document.getElementById("chat-send");
+
+chatFab.addEventListener("click", () => { chatPanel.style.display = "flex"; chatFab.style.display = "none"; });
+document.getElementById("chat-max").addEventListener("click", () => {
+  const btn = document.getElementById("chat-max");
+  const maximized = chatPanel.classList.toggle("maximized");
+  btn.textContent = maximized ? "⤡" : "⤢";
+  btn.title = maximized ? "还原" : "放大";
+});
+document.getElementById("chat-close").addEventListener("click", () => {
+  chatPanel.style.display = "none";
+  chatFab.style.display = "";
+});
+
+function renderChatSelectors() {
+  chatProviderSel.innerHTML = "";
+  chatProviders.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    chatProviderSel.appendChild(opt);
+  });
+  renderModelOptions();
+  const empty = chatProviders.length === 0;
+  chatNote.style.display = empty ? "" : "none";
+  chatInput.disabled = empty;
+  chatSend.disabled = empty;
+}
+
+function renderModelOptions() {
+  const p = chatProviders.find(p => p.id === chatProviderSel.value);
+  chatModelSel.innerHTML = "";
+  (p ? p.models : []).forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    chatModelSel.appendChild(opt);
+  });
+}
+chatProviderSel.addEventListener("change", renderModelOptions);
+
+function appendChatMsg(role, text) {
+  chatHistory.push({role, text});
+  const div = document.createElement("div");
+  div.className = "chat-msg " + role;
+  if (role === "assistant" && md) {
+    // markdown-it 默认 html: false，无 XSS 风险
+    div.innerHTML = md.render(text);
+    div.classList.add("rendered");
+  } else {
+    div.textContent = text;
+  }
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function sendChat() {
+  const question = chatInput.value.trim();
+  if (!question || !chatProviders.length) return;
+  appendChatMsg("user", question);
+  chatInput.value = "";
+  // loading 态：禁用 + 文案，响应返回后（finally）恢复
+  chatSend.disabled = true;
+  chatSend.textContent = "发送中…";
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        provider: chatProviderSel.value,
+        model: chatModelSel.value,
+        level_id: levels[current].id,
+        code: editor.getValue(),
+        question: question,
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      appendChatMsg("assistant", data.reply);
+    } else {
+      appendChatMsg("error", data.detail || "助教服务出错了，稍后再试");
+    }
+  } catch (e) {
+    appendChatMsg("error", "网络错误：请求没有发出去，检查服务是不是还在跑，然后重试");
+  } finally {
+    chatSend.disabled = false;
+    chatSend.textContent = "发送";
+  }
+}
+chatSend.addEventListener("click", sendChat);
+chatInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") sendChat();
+});
+
+async function initChat() {
+  try {
+    const resp = await fetch("/api/chat/providers");
+    chatProviders = await resp.json();
+  } catch (e) {
+    chatProviders = [];
+  }
+  renderChatSelectors();
+}
+initChat();
+
+/* ---- 期末考试 ---- */
+// 视图切换只动 display：考试视图打开/关闭不碰关卡区任何状态，
+// #run-btn 等既有元素 ID 与 e2e 选择器全部保持不变
+const examBtn = document.getElementById("exam-btn");
+const examView = document.getElementById("exam-view");
+const examPaper = document.getElementById("exam-paper");
+const examResult = document.getElementById("exam-result");
+const contentEl = document.getElementById("content");
+const sidebarEl = document.getElementById("sidebar");
+
+function getExamBest() {
+  const v = JSON.parse(localStorage.getItem("quest_exam_best") || "null");
+  return typeof v === "number" ? v : null;
+}
+
+function updateExamBtn() {
+  const full = levels.length > 0 && getProgress().length >= levels.length;
+  examBtn.disabled = !full;
+  examBtn.title = full ? "20 道选择题，80 分通过" : "通关全部关卡后解锁";
+  const best = getExamBest();
+  examBtn.textContent = best === null ? "期末考试" : "期末考试 · " + best;
+}
+
+async function openExam() {
+  try {
+    const resp = await fetch("/api/exam");
+    if (!resp.ok) throw new Error("bad status");
+    renderExamPaper(await resp.json());
+  } catch (e) {
+    examPaper.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "card";
+    card.textContent = "试卷加载失败：检查服务是不是还在跑，然后点顶栏「期末考试」重试";
+    examPaper.appendChild(card);
+  }
+  examResult.style.display = "none";
+  examResult.innerHTML = "";
+  examPaper.style.display = "";
+  contentEl.style.display = "none";
+  sidebarEl.style.display = "none";
+  examView.style.display = "flex";
+  examView.scrollTop = 0;
+}
+
+function closeExam() {
+  examView.style.display = "none";
+  // 恢复成空字符串，交还给样式表里的 flex/grid 规则
+  contentEl.style.display = "";
+  sidebarEl.style.display = "";
+}
+
+function renderExamPaper(questions) {
+  examPaper.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "card";
+  const h2 = document.createElement("h2");
+  h2.textContent = "期末考试";
+  const tip = document.createElement("p");
+  tip.textContent = "20 道选择题，每题 5 分，80 分通过。交卷后能看到每题的对错和解析。";
+  head.appendChild(h2);
+  head.appendChild(tip);
+  examPaper.appendChild(head);
+  questions.forEach((q, qi) => {
+    const card = document.createElement("div");
+    card.className = "card exam-q";
+    card.dataset.qid = q.id;
+    const stem = document.createElement("div");
+    stem.className = "stem";
+    stem.textContent = "第 " + (qi + 1) + " 题 · " + q.question;
+    card.appendChild(stem);
+    q.options.forEach((opt, oi) => {
+      const label = document.createElement("label");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "exam-q-" + q.id;
+      radio.value = oi;
+      const span = document.createElement("span");
+      span.textContent = "ABCD"[oi] + ". " + opt;
+      label.appendChild(radio);
+      label.appendChild(span);
+      card.appendChild(label);
+    });
+    examPaper.appendChild(card);
+  });
+  const row = document.createElement("div");
+  row.className = "exam-actions-row";
+  const submitBtn = document.createElement("button");
+  submitBtn.id = "exam-submit";
+  submitBtn.textContent = "交卷";
+  submitBtn.addEventListener("click", submitExam);
+  const quit = document.createElement("button");
+  quit.className = "exam-action";
+  quit.textContent = "返回关卡";
+  quit.addEventListener("click", closeExam);
+  row.appendChild(submitBtn);
+  row.appendChild(quit);
+  examPaper.appendChild(row);
+}
+
+async function submitExam() {
+  const answers = {};
+  let unanswered = 0;
+  examPaper.querySelectorAll(".exam-q").forEach(card => {
+    const checked = card.querySelector("input[type=radio]:checked");
+    if (checked) {
+      answers[card.dataset.qid] = Number(checked.value);
+    } else {
+      unanswered++;
+    }
+  });
+  if (unanswered > 0 &&
+      !confirm("还有 " + unanswered + " 题没作答，未作答按错处理，确定交卷吗？")) {
+    return;
+  }
+  try {
+    const resp = await fetch("/api/exam/submit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({answers}),
+    });
+    if (!resp.ok) throw new Error("bad status");
+    renderExamResult(await resp.json());
+  } catch (e) {
+    alert("网络错误：交卷没有发出去，检查服务是不是还在跑，然后重试");
+  }
+}
+
+function renderExamResult(data) {
+  // 最好成绩只升不降
+  const best = getExamBest();
+  if (best === null || data.score > best) {
+    localStorage.setItem("quest_exam_best", JSON.stringify(data.score));
+  }
+  updateExamBtn();
+  examPaper.style.display = "none";
+  examResult.style.display = "";
+  examResult.innerHTML = "";
+
+  const summary = document.createElement("div");
+  summary.className = "card";
+  const score = document.createElement("div");
+  score.id = "exam-score";
+  score.className = data.passed ? "pass" : "fail";
+  score.textContent = data.score + " 分";
+  summary.appendChild(score);
+  const verdict = document.createElement("div");
+  verdict.id = "exam-verdict";
+  verdict.textContent = data.passed
+    ? "通过（80 分线）"
+    : "未通过，看看下面的错题解析，回去复习对应关卡再来一次";
+  summary.appendChild(verdict);
+  if (data.passed) {
+    const grad = document.createElement("div");
+    grad.id = "exam-graduate";
+    grad.textContent =
+      "毕业啦！41 关闯关 + 期末考试全部拿下——从 f-string 到手搓 Agent 主循环，" +
+      "再到 deepagents 源码和 dsh 六包，你已经集齐了独立写一个生产级 Agent 的全部地基。" +
+      "去造你自己的 Agent 吧！";
+    summary.appendChild(grad);
+  }
+  const row = document.createElement("div");
+  row.className = "exam-actions-row";
+  row.style.marginTop = "14px";
+  const retry = document.createElement("button");
+  retry.className = "exam-action";
+  retry.textContent = "再考一次";
+  retry.addEventListener("click", openExam);
+  const back = document.createElement("button");
+  back.className = "exam-action";
+  back.textContent = "返回关卡";
+  back.addEventListener("click", closeExam);
+  row.appendChild(retry);
+  row.appendChild(back);
+  summary.appendChild(row);
+  examResult.appendChild(summary);
+
+  data.results.forEach((r, i) => {
+    const card = document.createElement("div");
+    card.className = "card review-card " + (r.correct ? "right" : "wrong");
+    const mark = document.createElement("div");
+    mark.className = "review-mark";
+    mark.textContent = "第 " + (i + 1) + " 题 · " + (r.correct ? "✓ 答对" : "✗ 答错");
+    card.appendChild(mark);
+    const line = document.createElement("div");
+    line.className = "review-line";
+    const fmt = v => (v === null || v === undefined) ? "未作答" : "ABCD"[v];
+    const b1 = document.createElement("b");
+    b1.textContent = fmt(r.your_choice);
+    const b2 = document.createElement("b");
+    b2.textContent = "ABCD"[r.correct_choice];
+    line.append("你的选择：", b1, "　正确答案：", b2);
+    card.appendChild(line);
+    const explain = document.createElement("div");
+    explain.className = "review-explain";
+    explain.textContent = "解析：" + r.explanation;
+    card.appendChild(explain);
+    if (!r.correct) {
+      const gotoBtn = document.createElement("button");
+      gotoBtn.className = "review-goto";
+      gotoBtn.textContent = "回到第 " + r.level_id + " 关复习";
+      gotoBtn.addEventListener("click", () => {
+        closeExam();
+        const idx = levels.findIndex(lv => lv.id === r.level_id);
+        if (idx >= 0) showLevel(idx);
+      });
+      card.appendChild(gotoBtn);
+    }
+    examResult.appendChild(card);
+  });
+  examView.scrollTop = 0;
+}
+
+examBtn.addEventListener("click", openExam);
+
+// 跨越 1280px 断点时编辑器宽度变化，刷新 CodeMirror 的度量
+window.addEventListener("resize", () => editor.refresh());
+</script>
+</body>
+</html>
