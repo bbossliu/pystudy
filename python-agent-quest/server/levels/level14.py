@@ -107,7 +107,7 @@ def _dotted_name(node: ast.AST) -> str:
 
 def judge(source: str, result: RunResult) -> tuple[bool, str]:
     if not os.environ.get("DEEPSEEK_API_KEY"):
-        return False, "服务器没有配置 DEEPSEEK_API_KEY，先在启动服务的环境里设置它"
+        return False, "服务器没有配置 DEEPSEEK_API_KEY，先在启动服务的环境里设置它；配置好之前可以点左侧列表跳过本关，先打后面的"
     if "sk-" in source:
         return False, (
             "检测到代码里有 sk- 开头的字符串——API key 不能硬编码，"

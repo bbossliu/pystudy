@@ -39,6 +39,12 @@ KNOWLEDGE = """\
 5) replay 是纯函数式重建
   从空队列开始，把事件日志逐条重做（add 入队、remove 移除），
   得到的队列必须和内存里的一模一样——这就是「日志是事实」的检验标准。
+
+6) 题外语法：@classmethod
+  replay 不操作某个具体 Inbox 实例，而是「凭空造一个新的」——
+  这种「属于类、不属于实例」的方法用 @classmethod 声明，
+  第一个参数 cls 就是类本身（对照 Java 的 static 方法，
+  区别是 Python 会把类显式传进来）。
 """
 
 STARTER_CODE = """\
