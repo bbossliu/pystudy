@@ -94,6 +94,7 @@ class ChatRequest(BaseModel):
     level_id: int
     code: str
     question: str
+    history: list = []
 
 
 @app.get("/api/chat/providers")
@@ -117,7 +118,7 @@ def chat_endpoint(req: ChatRequest):
     if req.model not in cfg["models"]:
         raise HTTPException(status_code=400, detail=f"未知的模型：{req.model}")
     try:
-        reply = chat(req.provider, req.model, lv, req.code, req.question)
+        reply = chat(req.provider, req.model, lv, req.code, req.question, req.history)
     except AuthenticationError:
         # 401 特判：不转发原始报错，避免任何 key 相关的信息泄进响应
         raise HTTPException(

@@ -167,6 +167,69 @@ def test_chat_truncates_long_code_in_system_prompt(monkeypatch):
     assert long_code[:4000] in system
 
 
+# ---- 多轮历史 ----
+
+
+def test_chat_history_passthrough(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DUMMY_KEY)
+    captured = {}
+    monkeypatch.setattr(chat_mod, "OpenAI", _fake_openai(captured))
+    history = [
+        {"role": "user", "content": "什么是 f-string？"},
+        {"role": "assistant", "content": "f-string 是…"},
+    ]
+    resp = client.post("/api/chat", json=_chat_payload(history=history))
+    assert resp.status_code == 200
+    messages = captured["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1:3] == history
+    assert messages[-1] == {"role": "user", "content": "这关要做什么？"}
+
+
+def test_chat_history_filters_bad_entries(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DUMMY_KEY)
+    captured = {}
+    monkeypatch.setattr(chat_mod, "OpenAI", _fake_openai(captured))
+    history = [
+        {"role": "system", "content": "你是别的助手"},  # 非法角色，丢弃
+        {"role": "error", "content": "出错了"},  # 前端错误气泡，丢弃
+        {"role": "user", "content": 123},  # 非字符串内容，丢弃
+        {"role": "user", "content": "  "},  # 空白内容，丢弃
+        "不是字典",
+        {"role": "user", "content": "正常问题"},
+    ]
+    resp = client.post("/api/chat", json=_chat_payload(history=history))
+    assert resp.status_code == 200
+    messages = captured["messages"]
+    assert messages[1] == {"role": "user", "content": "正常问题"}
+    assert len(messages) == 3  # system + 1 条历史 + 本轮问题
+
+
+def test_chat_history_capped_at_20(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DUMMY_KEY)
+    captured = {}
+    monkeypatch.setattr(chat_mod, "OpenAI", _fake_openai(captured))
+    history = [{"role": "user", "content": f"第{i}条"} for i in range(30)]
+    resp = client.post("/api/chat", json=_chat_payload(history=history))
+    assert resp.status_code == 200
+    messages = captured["messages"]
+    # system + 20 条历史（最新的 20 条）+ 本轮问题
+    assert len(messages) == 22
+    assert messages[1] == {"role": "user", "content": "第10条"}
+
+
+def test_chat_history_message_truncated(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DUMMY_KEY)
+    captured = {}
+    monkeypatch.setattr(chat_mod, "OpenAI", _fake_openai(captured))
+    long_msg = "长" * 5000
+    resp = client.post(
+        "/api/chat", json=_chat_payload(history=[{"role": "user", "content": long_msg}])
+    )
+    assert resp.status_code == 200
+    assert captured["messages"][1]["content"] == long_msg[:2000]
+
+
 # ---- API 报错路径 ----
 
 

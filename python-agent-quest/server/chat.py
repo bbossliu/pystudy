@@ -43,6 +43,22 @@ SYSTEM_TEMPLATE = """\
 # 学生代码注入 system prompt 前的长度上限，防超长代码打爆 token
 CODE_MAX_CHARS = 4000
 
+# 历史消息的注入上限：最多 20 条、每条最多 2000 字符，防多轮对话打爆 token
+HISTORY_MAX_MESSAGES = 20
+HISTORY_MSG_MAX_CHARS = 2000
+
+
+def sanitize_history(history) -> list[dict]:
+    """清洗前端传来的历史消息：只保留 user/assistant 角色的字符串内容并截断。"""
+    cleaned = []
+    for msg in (history or [])[-HISTORY_MAX_MESSAGES:]:
+        if not isinstance(msg, dict):
+            continue
+        role, content = msg.get("role"), msg.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+            cleaned.append({"role": role, "content": content[:HISTORY_MSG_MAX_CHARS]})
+    return cleaned
+
 
 def available_providers() -> list[dict]:
     """只返回 env key 已配置的提供商。"""
@@ -71,8 +87,10 @@ def build_system_prompt(level, code: str) -> str:
     )
 
 
-def chat(provider_id: str, model: str, level, code: str, question: str) -> str:
-    """单轮对话：system 带关卡上下文 + 学生代码，user 为学生的问题。"""
+def chat(
+    provider_id: str, model: str, level, code: str, question: str, history=None
+) -> str:
+    """system 带关卡上下文 + 学生代码，随后是历史消息，最后是学生本轮问题。"""
     cfg = PROVIDERS[provider_id]
     client = OpenAI(
         base_url=cfg["base_url"],
@@ -83,6 +101,7 @@ def chat(provider_id: str, model: str, level, code: str, question: str) -> str:
         model=model,
         messages=[
             {"role": "system", "content": build_system_prompt(level, code)},
+            *sanitize_history(history),
             {"role": "user", "content": question},
         ],
     )

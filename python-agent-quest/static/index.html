@@ -202,6 +202,20 @@
     left: 24px; right: 24px; top: 24px; bottom: 24px;
     width: auto; height: auto; max-width: none; max-height: none;
   }
+  #chat-conv-row {
+    display: flex; gap: 6px; padding: 6px 12px;
+    border-bottom: 1px solid #313244;
+  }
+  #chat-conv {
+    flex: 1; min-width: 0; padding: 4px 6px;
+    background: #1e1e2e; color: #a6adc8;
+    border: 1px solid #313244; border-radius: 6px; font-size: 12px;
+  }
+  #chat-conv-row button {
+    padding: 2px 8px; border: none; border-radius: 6px;
+    background: #313244; color: #cdd6f4; font-size: 12px; cursor: pointer;
+  }
+  #chat-conv-row button:hover { background: #45475a; }
   #chat-note {
     padding: 10px 12px; font-size: 12px; line-height: 1.6;
     color: #f9e2af; border-bottom: 1px solid #313244;
@@ -275,6 +289,11 @@
     <select id="chat-model"></select>
     <button id="chat-max" title="放大">⤢</button>
     <button id="chat-close" title="收起">×</button>
+  </div>
+  <div id="chat-conv-row">
+    <select id="chat-conv"></select>
+    <button id="chat-conv-new" title="新建对话">＋</button>
+    <button id="chat-conv-del" title="删除当前对话">🗑</button>
   </div>
   <div id="chat-note" style="display:none">未配置任何模型 key，先在服务端环境变量里配置（如 DEEPSEEK_API_KEY），再重启服务</div>
   <div id="chat-messages"></div>
@@ -478,14 +497,20 @@ runBtn.addEventListener("click", async () => {
 loadLevels();
 
 /* ---- 助教聊天面板 ---- */
-// 对话历史只存内存（DOM + 本数组），刷新即清空；后端是单轮调用，历史仅用于展示
-const chatHistory = [];
+// 对话存 localStorage（quest_chats_v1）：多个对话可切换/新建/删除，
+// 历史会随请求发给后端做上下文，助教能记住这轮对话聊过什么
+const CHATS_KEY = "quest_chats_v1";
+const MAX_CONVS = 20;           // 最多保留 20 个对话，超了丢最旧的
+const MAX_MSGS_PER_CONV = 50;   // 每个对话最多存 50 条消息
+let chatConvs = [];
+let currentConvId = null;
 let chatProviders = [];
 
 const chatFab = document.getElementById("chat-fab");
 const chatPanel = document.getElementById("chat-panel");
 const chatProviderSel = document.getElementById("chat-provider");
 const chatModelSel = document.getElementById("chat-model");
+const chatConvSel = document.getElementById("chat-conv");
 const chatNote = document.getElementById("chat-note");
 const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
@@ -501,6 +526,51 @@ document.getElementById("chat-max").addEventListener("click", () => {
 document.getElementById("chat-close").addEventListener("click", () => {
   chatPanel.style.display = "none";
   chatFab.style.display = "";
+});
+
+/* ---- 对话存储与切换 ---- */
+function loadConvs() {
+  try { chatConvs = JSON.parse(localStorage.getItem(CHATS_KEY)) || []; }
+  catch { chatConvs = []; }
+  if (!Array.isArray(chatConvs)) chatConvs = [];
+}
+function saveConvs() {
+  localStorage.setItem(CHATS_KEY, JSON.stringify(chatConvs.slice(0, MAX_CONVS)));
+}
+function currentConv() { return chatConvs.find(c => c.id === currentConvId) || null; }
+
+function newConv() {
+  const conv = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: "新对话", messages: [] };
+  chatConvs.unshift(conv);
+  currentConvId = conv.id;
+  saveConvs();
+  renderConvOptions();
+  renderConvMessages();
+}
+
+function renderConvOptions() {
+  chatConvSel.innerHTML = "";
+  chatConvs.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.title;
+    chatConvSel.appendChild(opt);
+  });
+  if (currentConvId) chatConvSel.value = currentConvId;
+}
+
+chatConvSel.addEventListener("change", () => {
+  currentConvId = chatConvSel.value;
+  renderConvMessages();
+});
+document.getElementById("chat-conv-new").addEventListener("click", newConv);
+document.getElementById("chat-conv-del").addEventListener("click", () => {
+  chatConvs = chatConvs.filter(c => c.id !== currentConvId);
+  if (chatConvs.length === 0) { newConv(); return; }
+  currentConvId = chatConvs[0].id;
+  saveConvs();
+  renderConvOptions();
+  renderConvMessages();
 });
 
 function renderChatSelectors() {
@@ -530,8 +600,8 @@ function renderModelOptions() {
 }
 chatProviderSel.addEventListener("change", renderModelOptions);
 
-function appendChatMsg(role, text) {
-  chatHistory.push({role, text});
+// 纯渲染一条气泡，不碰存储；appendChatMsg 才负责落盘
+function renderMsgBubble(role, text) {
   const div = document.createElement("div");
   div.className = "chat-msg " + role;
   if (role === "assistant" && md) {
@@ -545,11 +615,36 @@ function appendChatMsg(role, text) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+function renderConvMessages() {
+  chatMessages.innerHTML = "";
+  const conv = currentConv();
+  (conv ? conv.messages : []).forEach(m => renderMsgBubble(m.role, m.text));
+}
+
+function appendChatMsg(role, text) {
+  renderMsgBubble(role, text);
+  const conv = currentConv();
+  if (!conv) return;
+  conv.messages.push({ role, text });
+  if (conv.messages.length > MAX_MSGS_PER_CONV) conv.messages = conv.messages.slice(-MAX_MSGS_PER_CONV);
+  // 第一条提问当对话标题
+  if (role === "user" && conv.title === "新对话") {
+    conv.title = text.length > 14 ? text.slice(0, 14) + "…" : text;
+    renderConvOptions();
+  }
+  saveConvs();
+}
+
 async function sendChat() {
   const question = chatInput.value.trim();
   if (!question || !chatProviders.length) return;
   appendChatMsg("user", question);
   chatInput.value = "";
+  // 历史 = 本轮问题之前、当前对话里已保存的 user/assistant 消息
+  const conv = currentConv();
+  const history = (conv ? conv.messages.slice(0, -1) : [])
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .map(m => ({ role: m.role, content: m.text }));
   // loading 态：禁用 + 文案，响应返回后（finally）恢复
   chatSend.disabled = true;
   chatSend.textContent = "发送中…";
@@ -563,6 +658,7 @@ async function sendChat() {
         level_id: levels[current].id,
         code: editor.getValue(),
         question: question,
+        history: history,
       }),
     });
     const data = await resp.json();
@@ -591,6 +687,14 @@ async function initChat() {
     chatProviders = [];
   }
   renderChatSelectors();
+  loadConvs();
+  if (chatConvs.length === 0) {
+    newConv();
+  } else {
+    currentConvId = chatConvs[0].id;
+    renderConvOptions();
+    renderConvMessages();
+  }
 }
 initChat();
 
