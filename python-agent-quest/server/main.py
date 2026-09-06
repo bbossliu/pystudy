@@ -33,6 +33,7 @@ def list_levels():
             "story": lv.story,
             "knowledge": lv.knowledge,
             "starter_code": lv.starter_code,
+            "diagram": lv.diagram,
         }
         for lv in sorted(LEVELS.values(), key=lambda l: l.id)
     ]

@@ -104,6 +104,17 @@ print(result)
 
 EXPECTED_OUTPUT = ">> 进入 LogMiddleware\n<< 离开 LogMiddleware\nLLM 回复"
 
+# 洋葱模型：请求一层层进（实线），响应原路返回（虚线），与知识卡第 4 点一致
+DIAGRAM = """\
+graph LR
+    REQ["请求 request"] --> A["MiddlewareA<br>wrap_model_call"]
+    A --> B["MiddlewareB<br>wrap_model_call"]
+    B --> LLM["LLM"]
+    LLM -. "响应原路返回" .-> B2["MiddlewareB<br>后处理"]
+    B2 -.-> A2["MiddlewareA<br>后处理"]
+    A2 -.-> RESP["响应"]
+"""
+
 
 def _calls_handler(method: ast.FunctionDef) -> bool:
     return any(

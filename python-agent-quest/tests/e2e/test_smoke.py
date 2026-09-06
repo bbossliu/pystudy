@@ -46,6 +46,19 @@ def test_level1_pass_flow(server):
         browser.close()
 
 
+def test_level15_diagram_renders_svg(server):
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(BASE)
+        page.wait_for_selector("#parts li")
+        # 点击关卡列表第 15 项，进入带 DIAGRAM 的第 15 关
+        page.click("#parts li:nth-child(15)")
+        assert "第 15 关" in page.inner_text("#level-title")
+        page.wait_for_selector("#diagram svg", timeout=20000)
+        browser.close()
+
+
 def test_navigate_back_to_passed_level(server):
     from server.levels.loader import load_levels
 

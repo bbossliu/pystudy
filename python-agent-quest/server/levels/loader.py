@@ -23,6 +23,7 @@ class Level:
     solution: str
     judge: JudgeFn
     timeout: int = DEFAULT_TIMEOUT
+    diagram: "str | None" = None
 
 
 def load_levels() -> list[Level]:
@@ -39,6 +40,7 @@ def load_levels() -> list[Level]:
         levels.append(
             Level(mod.ID, mod.TITLE, mod.STORY, mod.KNOWLEDGE,
                   mod.STARTER_CODE, mod.SOLUTION, mod.judge,
-                  getattr(mod, "TIMEOUT", DEFAULT_TIMEOUT))
+                  getattr(mod, "TIMEOUT", DEFAULT_TIMEOUT),
+                  getattr(mod, "DIAGRAM", None))
         )
     return sorted(levels, key=lambda lv: lv.id)

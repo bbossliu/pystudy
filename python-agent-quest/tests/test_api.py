@@ -22,6 +22,20 @@ def test_list_levels_hides_solution():
         assert "solution" not in level
 
 
+def test_list_levels_includes_diagram_field():
+    resp = client.get("/api/levels")
+    assert resp.status_code == 200
+    for level in resp.json():
+        assert "diagram" in level
+
+
+def test_level15_has_diagram():
+    resp = client.get("/api/levels")
+    data = resp.json()
+    lv15 = next(lv for lv in data if lv["id"] == 15)
+    assert lv15["diagram"]
+
+
 def test_run_endpoint_passes_with_solution():
     from server.levels.loader import load_levels
 

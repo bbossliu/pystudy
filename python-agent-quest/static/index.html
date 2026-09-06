@@ -44,6 +44,7 @@
   <section id="left">
     <div class="card"><h2 id="level-title"></h2><p id="story"></p></div>
     <div class="card"><h3>知识卡 · Java 对照</h3><div class="body" id="knowledge"></div></div>
+    <div class="card" id="diagram-card" style="display:none"><h3>配图</h3><div class="body" id="diagram"></div></div>
     <div class="card"><h3>我的 Agent 装配进度</h3><ul id="parts"></ul></div>
   </section>
   <section id="right">
@@ -54,7 +55,12 @@
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+if (window.mermaid) {
+  mermaid.initialize({startOnLoad: false, theme: "dark"});
+}
+</script>
 <script>
 let levels = [];
 let current = 0;
@@ -94,7 +100,30 @@ function showLevel(i) {
   editor.setValue(lv.starter_code);
   document.getElementById("output").textContent = "";
   document.getElementById("message").textContent = "";
+  renderDiagram(lv);
   renderProgress();
+}
+
+function renderDiagram(lv) {
+  const card = document.getElementById("diagram-card");
+  const box = document.getElementById("diagram");
+  // 每次切关重建图区节点，避免 mermaid 积累旧 svg
+  box.innerHTML = "";
+  if (!lv.diagram) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const pre = document.createElement("pre");
+  pre.textContent = lv.diagram;
+  if (window.mermaid) {
+    pre.className = "mermaid";
+    box.appendChild(pre);
+    mermaid.run({nodes: [pre]}).catch(() => {});
+  } else {
+    // 降级：mermaid CDN 加载失败时直接展示源码（等宽文本）
+    box.appendChild(pre);
+  }
 }
 
 function renderProgress() {
