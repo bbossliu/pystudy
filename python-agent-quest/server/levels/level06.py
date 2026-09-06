@@ -12,9 +12,12 @@ STORY = (
 
 KNOWLEDGE = """\
 def 定义函数，对比 Java 方法——不用写返回类型和访问修饰符：
+
+```plaintext
   Java:   String callLlm(String prompt, String model) { return ...; }
   Python: def call_llm(prompt, model="mock-1"):
               return ...
+```
 
 要点：
   - 默认参数 model="mock-1"：调用时不传就用默认值，相当于 Java 写两个重载方法

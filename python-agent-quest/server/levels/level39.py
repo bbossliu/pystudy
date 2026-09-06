@@ -19,16 +19,22 @@ pathlib——面向对象的目录管理，告别拼路径。
   一气呵成，比 os.listdir 手写拼接清爽。
 
 2) 核心用法
+
+```plaintext
   from pathlib import Path
   for p in Path(".").glob("*.json"):
       print(p.name)   # 文件名   a.json
       print(p.stem)   # 去掉后缀 a
+```
 
 3) Java 对照
+
+```plaintext
   Path(".")      ≈ Java Paths.get(".")
   glob("*.json") ≈ Files.walk 加通配过滤
   p.name/p.stem  ≈ getFileName()、手动去后缀
   Path("a") / "b.txt" ≈ Paths.get("a", "b.txt")
+```
 
 4) 坑与边界
   glob 只匹配当前目录，不递归；

@@ -19,16 +19,22 @@ KNOWLEDGE = """\
   但 GIL 让纯计算的多线程加不了速。
 
 2) 核心用法
+
+```plaintext
   import threading
   t = threading.Thread(target=worker,
                        args=(results,))
   t.start()   # 启动线程
   t.join()    # 等它干完再继续
+```
 
 3) Java 对照
+
+```plaintext
   threading.Thread ≈ new Thread(runnable)
   start()/join()   ≈ start()/join()，名字一样
   GIL              ≈ JVM 没有这东西！
+```
   同一时刻只有一个线程执行 Python 字节码，
   Java 多核是真并行，Python 线程是轮流跑。
 

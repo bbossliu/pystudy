@@ -7,54 +7,118 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #1e1e2e; color: #e0e0e0; }
-  header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #181825; }
-  header h1 { font-size: 18px; }
-  #progress { font-size: 14px; color: #a6e3a1; }
-  main { display: flex; gap: 16px; padding: 16px; height: calc(100vh - 54px); }
-  #left { width: 38%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-  #right { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-  .card { background: #313244; border-radius: 8px; padding: 14px 16px; }
-  .card h2 { font-size: 16px; margin-bottom: 8px; color: #89b4fa; }
-  .card h3 { font-size: 14px; margin-bottom: 8px; color: #f9e2af; }
-  .card p, .card .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
-  .part { list-style: none; font-size: 14px; padding: 3px 0; color: #6c7086; }
-  .part.done { color: #a6e3a1; }
+  body {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    background: #1e1e2e; color: #cdd6f4;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  /* ---- 顶栏：标题 + 进度条 + 进度文本 ---- */
+  header {
+    display: flex; align-items: center; gap: 24px;
+    height: 60px; padding: 0 24px; flex-shrink: 0;
+    background: #181825; border-bottom: 1px solid #313244;
+  }
+  header h1 { font-size: 17px; white-space: nowrap; }
+  .progress-wrap { flex: 1; display: flex; align-items: center; gap: 12px; max-width: 560px; margin-left: auto; }
+  #progress-bar { flex: 1; height: 8px; background: #313244; border-radius: 4px; overflow: hidden; }
+  #progress-fill {
+    height: 100%; width: 0%;
+    background: #a6e3a1; border-radius: 4px;
+    transition: width .4s ease;
+  }
+  /* 过关动效：一次 0.3s 的亮度脉冲，克制 */
+  #progress-fill.pulse { animation: pass-pulse .3s ease; }
+  @keyframes pass-pulse { 50% { filter: brightness(1.7); } }
+  #progress { font-size: 13px; color: #a6e3a1; white-space: nowrap; }
+  /* ---- 整体布局：sidebar + 主区 ---- */
+  main { flex: 1; display: flex; min-height: 0; }
+  #sidebar {
+    width: 250px; flex-shrink: 0;
+    background: #181825; border-right: 1px solid #313244;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-head { padding: 16px 18px 10px; font-size: 14px; font-weight: bold; color: #89b4fa; }
+  #parts { list-style: none; flex: 1; overflow-y: auto; padding: 4px 10px 16px; }
+  .part {
+    font-size: 13px; line-height: 1.5; padding: 7px 10px;
+    border-radius: 6px; color: #6c7086; cursor: pointer;
+  }
   .part::before { content: "○ "; }
+  .part.done { color: #a6e3a1; }
   .part.done::before { content: "● "; }
-  .part { cursor: pointer; }
-  .part:hover { color: #cdd6f4; }
-  .part.current { font-weight: bold; }
-  .part.current::after { content: " ← 当前"; font-size: 12px; color: #89b4fa; }
-  .CodeMirror { flex: 1; min-height: 300px; border-radius: 8px; font-size: 14px; }
-  #run-btn { padding: 10px; font-size: 15px; border: none; border-radius: 8px; background: #89b4fa; color: #1e1e2e; cursor: pointer; font-weight: bold; }
-  #run-btn:hover { background: #b4befe; }
-  #output { background: #11111b; border-radius: 8px; padding: 10px; min-height: 60px; max-height: 160px; overflow-y: auto; font-size: 13px; white-space: pre-wrap; }
-  #message { font-size: 14px; min-height: 22px; }
+  .part:hover { background: #313244; color: #cdd6f4; }
+  .part.current { background: #313244; color: #cdd6f4; font-weight: bold; }
+  /* ---- 主区卡片流 ---- */
+  #content {
+    flex: 1; overflow-y: auto;
+    padding: 20px 24px 60px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .card {
+    background: #313244; border-radius: 12px; padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+  }
+  .card h2 { font-size: 17px; margin-bottom: 10px; color: #89b4fa; }
+  .card h3 { font-size: 14px; margin-bottom: 10px; color: #f9e2af; }
+  .card p, .card .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  #diagram-card .body { overflow-x: auto; }
+  /* ---- 编辑器 + 运行 ---- */
+  #editor-card { padding: 12px; }
+  .CodeMirror {
+    height: 320px; border-radius: 8px; font-size: 14px;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  #run-btn {
+    margin-top: 12px; width: 100%; padding: 11px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 15px; font-weight: bold;
+    border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e; cursor: pointer;
+    transition: background .15s ease;
+  }
+  #run-btn:hover:not(:disabled) { background: #b4befe; }
+  #run-btn:disabled { opacity: .65; cursor: not-allowed; }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(30, 30, 46, .3); border-top-color: #1e1e2e;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* ---- 输出与提示 ---- */
+  #output {
+    background: #11111b; border-radius: 8px; padding: 12px;
+    min-height: 60px; max-height: 200px; overflow-y: auto;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  #message { font-size: 14px; min-height: 22px; padding: 0 4px; }
   #message.pass { color: #a6e3a1; }
   #message.fail { color: #f38ba8; }
   /* markdown 渲染后不再依赖 pre-wrap（避免 <br> 与换行符叠加出双倍空行），降级纯文本时保留默认 pre-wrap */
   #knowledge.rendered { white-space: normal; }
-  #knowledge.rendered pre.hljs { border-radius: 6px; margin: 8px 0; font-size: 13px; }
+  #knowledge.rendered pre.hljs { border-radius: 8px; margin: 10px 0; font-size: 13px; line-height: 1.6; }
   #knowledge.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
 </style>
 </head>
 <body>
 <header>
   <h1>造一个 Agent · Python 闯关</h1>
-  <div id="progress"></div>
+  <div class="progress-wrap">
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="progress"></div>
+  </div>
 </header>
 <main>
-  <section id="left">
+  <aside id="sidebar">
+    <div class="sidebar-head">关卡</div>
+    <ul id="parts"></ul>
+  </aside>
+  <section id="content">
     <div class="card"><h2 id="level-title"></h2><p id="story"></p></div>
     <div class="card"><h3>知识卡 · Java 对照</h3><div class="body" id="knowledge"></div></div>
     <div class="card" id="diagram-card" style="display:none"><h3>配图</h3><div class="body" id="diagram"></div></div>
-    <div class="card"><h3>我的 Agent 装配进度</h3><ul id="parts"></ul></div>
-  </section>
-  <section id="right">
-    <textarea id="code"></textarea>
-    <button id="run-btn">运行</button>
-    <pre id="output"></pre>
+    <div class="card" id="editor-card"><textarea id="code"></textarea><button id="run-btn">运行</button></div>
+    <div class="card"><h3>输出</h3><pre id="output"></pre></div>
     <div id="message"></div>
   </section>
 </main>
@@ -191,36 +255,56 @@ function renderProgress() {
   const passed = getProgress();
   document.getElementById("progress").textContent =
     "进度 " + passed.length + "/" + levels.length;
+  const pct = levels.length ? Math.round(passed.length / levels.length * 100) : 0;
+  document.getElementById("progress-fill").style.width = pct + "%";
   const ul = document.getElementById("parts");
   ul.innerHTML = "";
   levels.forEach((lv, i) => {
     const li = document.createElement("li");
     li.className = "part" + (passed.includes(lv.id) ? " done" : "") + (i === current ? " current" : "");
-    li.textContent = lv.title;
+    li.textContent = lv.id + ". " + lv.title;
     li.addEventListener("click", () => showLevel(i));
     ul.appendChild(li);
   });
 }
 
-document.getElementById("run-btn").addEventListener("click", async () => {
+// 过关时进度条做一次 0.3s 亮度脉冲；先移除再加类并强制 reflow，保证连过两关也能重触发
+function pulseProgress() {
+  const fill = document.getElementById("progress-fill");
+  fill.classList.remove("pulse");
+  void fill.offsetWidth;
+  fill.classList.add("pulse");
+}
+
+const runBtn = document.getElementById("run-btn");
+runBtn.addEventListener("click", async () => {
   const lv = levels[current];
-  const resp = await fetch("/api/run", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({level_id: lv.id, code: editor.getValue()}),
-  });
-  const data = await resp.json();
-  document.getElementById("output").textContent =
-    data.stdout + (data.stderr ? "\n" + data.stderr : "");
-  const msg = document.getElementById("message");
-  msg.textContent = data.message;
-  msg.className = data.passed ? "pass" : "fail";
-  if (data.passed) {
-    saveProgress(lv.id);
-    renderProgress();
-    if (current + 1 < levels.length) {
-      setTimeout(() => showLevel(current + 1), 1500);
+  // loading 态：禁用 + 转圈，响应返回后（finally）恢复
+  runBtn.disabled = true;
+  runBtn.innerHTML = '<span class="spinner"></span>运行中…';
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({level_id: lv.id, code: editor.getValue()}),
+    });
+    const data = await resp.json();
+    document.getElementById("output").textContent =
+      data.stdout + (data.stderr ? "\n" + data.stderr : "");
+    const msg = document.getElementById("message");
+    msg.textContent = data.message;
+    msg.className = data.passed ? "pass" : "fail";
+    if (data.passed) {
+      saveProgress(lv.id);
+      renderProgress();
+      pulseProgress();
+      if (current + 1 < levels.length) {
+        setTimeout(() => showLevel(current + 1), 1500);
+      }
     }
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = "运行";
   }
 });
 

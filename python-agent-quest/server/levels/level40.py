@@ -19,15 +19,21 @@ pytest——Python 的单元测试框架，断言更裸。
   Java 用 JUnit，Python 这边 pytest 是主流。
 
 2) 核心用法
+
+```python
   def add(a, b):
       return a + b
   def test_add():                  # test_ 开头
       assert add(1, 2) == 3        # 断言直接写
+```
 
 3) Java 对照
+
+```plaintext
   assert a == b            ≈ JUnit assertEquals
   @pytest.mark.parametrize ≈ @ParameterizedTest
   with pytest.raises(Err)  ≈ assertThrows
+```
   真实项目跑 pytest tests/，框架自动收集执行。
 
 4) 坑与边界

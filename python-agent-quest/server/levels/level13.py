@@ -13,6 +13,7 @@ STORY = (
 KNOWLEDGE = """\
 终关没有新语法，盘点一下你给小K 装上的零件：
 
+```plaintext
   第 1 关   f-string     → 拼 system prompt
   第 2/3 关 list / dict  → 对话记忆（就是 OpenAI API 的消息格式）
   第 4 关   if/elif      → 意图路由
@@ -24,11 +25,15 @@ KNOWLEDGE = """\
   第 10 关  装饰器        → @tool 自动注册
   第 11 关  模块          → 拆分项目文件
   第 12 关  async/await  → 并发调工具
+```
 
 接真实 API 只差一步：把 mock_llm 换成 openai 的调用——
+
+```python
   from openai import OpenAI
   client = OpenAI()
   resp = client.chat.completions.create(model="gpt-4o-mini", messages=self.memory)
+```
 生产级 agent 的核心也就是这套结构，再加上更多工具和状态管理——
 LangGraph 这类框架干的正是这件事。
 """

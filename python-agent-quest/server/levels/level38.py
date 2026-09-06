@@ -20,15 +20,21 @@ KNOWLEDGE = """\
   百万行日志不必全进内存。
 
 2) 核心用法
+
+```python
   def read():
       yield "日志1"
       yield "日志2"
   for line in read():   # 逐条拉取
       print(line)
+```
 
 3) Java 对照
+
+```plaintext
   yield 暂停续跑 ≈ Java Iterator.next() 逐条取
   惰性求值       ≈ Java Stream：不遍历就不计算
+```
   Java 要自己实现 hasNext/next 一套，
   Python 一个 yield 关键字就搞定。
 

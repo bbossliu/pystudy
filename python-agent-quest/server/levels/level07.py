@@ -12,6 +12,8 @@ STORY = (
 
 KNOWLEDGE = """\
 try/except 对比 Java 的 try/catch——不用声明 throws：
+
+```plaintext
   Java:   try { ... } catch (NumberFormatException e) { ... } finally { ... }
   Python: try:
               ...
@@ -19,6 +21,7 @@ try/except 对比 Java 的 try/catch——不用声明 throws：
               ...
           finally:
               ...
+```
 
 要点：
   - 不用在方法签名上声明 throws，任何函数都可能抛异常

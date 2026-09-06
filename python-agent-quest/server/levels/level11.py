@@ -21,13 +21,20 @@ import 对比 Java 的 import + package：
   Python 里 toolkit.py 天然就是名为 toolkit 的模块，不用显式导出任何东西。
 
 2) import 的两种写法
+
+```plaintext
   import toolkit            → 用 toolkit.greet(...) 访问（带模块名前缀）
   from toolkit import greet → 直接写 greet(...)（类似 Java 的 static import）
+```
 
 3) 导入即执行
   import 一个模块时它的顶层代码会跑一遍（整个文件只执行一次，之后走缓存）。
   所以「只想在直接运行时才执行」的代码要包在：
+
+```python
       if __name__ == "__main__":
+```
+
   里——__name__ 在直接运行时是 "__main__"，被 import 时是模块名。
   对比 Java：相当于把 main 方法的入口判断写在了文件级别。
 

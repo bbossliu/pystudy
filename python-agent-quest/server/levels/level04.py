@@ -12,6 +12,8 @@ STORY = (
 
 KNOWLEDGE = """\
 if/elif/else 对比 Java：冒号和缩进代替大括号，elif 就是 else if：
+
+```plaintext
   Java:   if (s.contains("写")) { ... } else if (s.contains("天气")) { ... } else { ... }
   Python: if "写" in s:
               ...
@@ -19,6 +21,7 @@ if/elif/else 对比 Java：冒号和缩进代替大括号，elif 就是 else if�
               ...
           else:
               ...
+```
 
 注意：
   - in 关键字判断包含，比 Java 的 str.contains() 更顺手

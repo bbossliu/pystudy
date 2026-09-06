@@ -14,10 +14,13 @@ STORY = (
 
 KNOWLEDGE = """\
 文件读写 + json，对比 Java：
+
+```plaintext
   Java:   try (BufferedWriter w = Files.newBufferedWriter(path)) { ... }
           // 序列化还得引 Jackson / Gson 依赖
   Python: with open("memory.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False)
+```
 
 要点：
   - with 会自动帮你关文件，等价于 Java 的 try-with-resources

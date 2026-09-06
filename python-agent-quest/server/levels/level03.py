@@ -12,12 +12,18 @@ STORY = (
 
 KNOWLEDGE = """\
 dict 是键值对，对比 Java 的 Map：
+
+```plaintext
   Java:   Map<String, String> msg = Map.of("role", "user", "content", "你好");
   Python: msg = {"role": "user", "content": "你好"}   # 字面量直接写
+```
 
 取值用下标，对比 Java 的 get：
+
+```plaintext
   Java:   msg.get("role")
   Python: msg["role"]       # 也可以 msg.get("role")
+```
 
 顺便说：{"role": "user", "content": "..."} 就是真实 LLM API 的消息结构。
 """

@@ -26,11 +26,14 @@ async/await 对比 Java 的线程模型——思路完全不同：
   代价是协程里跑纯 CPU 重活会把所有人堵住。
 
 3) 写法对照
+
+```plaintext
   Java:   CompletableFuture<String> f =
               CompletableFuture.supplyAsync(() -> callTool(name));
           CompletableFuture.allOf(f1, f2, f3).join();
   Python: async def call_tool(name): ...
           results = await asyncio.gather(call_tool("查天气"), ...)
+```
 
 4) async def 只是定义协程函数，调用它不会执行，只得到一个协程对象；
   await 才真正等它跑完并拿到返回值。

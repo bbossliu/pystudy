@@ -14,11 +14,19 @@ KNOWLEDGE = """\
 装饰器对比 Java 注解——长得像，本质完全不同：
 
 1) Java 注解是元数据，Python 装饰器是可执行代码
+
+```plaintext
   Java:   @Component
           public class SearchTool { ... }
+```
+
   注解自己不干活，靠 Spring 启动时扫描、反射来处理。
+
+```plaintext
   Python: @tool
           def search(query): ...
+```
+
   @tool 等价于 search = tool(search)——在函数定义的那一刻就立即执行。
 
 2) 为什么能这么玩？因为函数是一等公民

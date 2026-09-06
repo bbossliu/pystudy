@@ -12,14 +12,20 @@ STORY = (
 
 KNOWLEDGE = """\
 list 就是 Python 的动态数组，对比 Java 的 ArrayList：
+
+```plaintext
   Java:   List<String> messages = new ArrayList<>();
           messages.add("你好");
   Python: messages = []            # 不用声明泛型，不用 new
           messages.append("你好")  # 直接 append
+```
 
 常用操作：
+
+```plaintext
   len(messages)   # 长度，对比 Java 的 messages.size()
   messages[0]     # 按下标取值，和 Java 一样从 0 开始
+```
 """
 
 STARTER_CODE = """\

@@ -14,6 +14,8 @@ KNOWLEDGE = """\
 class 对比 Java——处处相似，细节不同：
 
 1) 定义与构造器
+
+```plaintext
   Java:   public class Tool {
               private String name;
               public Tool(String name) { this.name = name; }
@@ -24,6 +26,7 @@ class 对比 Java——处处相似，细节不同：
                   self.name = name
               def describe(self):
                   return f"工具：{self.name}"
+```
 
 2) self 要显式写出来
   Java 的 this 是隐式的，方法签名里看不到它；

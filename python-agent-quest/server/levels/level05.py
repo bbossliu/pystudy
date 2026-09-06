@@ -12,15 +12,21 @@ STORY = (
 
 KNOWLEDGE = """\
 for 循环对比 Java 的增强 for：
+
+```plaintext
   Java:   for (String s : steps) { ... }
   Python: for s in steps:
               ...
+```
 
 带编号用 enumerate(steps, 1)，序号从 1 开始；while 写法和 Java 一样。
 
 列表推导式一步生成新列表，对比 Stream API 的 map + collect：
+
+```plaintext
   Java:   steps.stream().map(s -> s + "-完成").collect(Collectors.toList())
   Python: [s + "-完成" for s in steps]
+```
 """
 
 STARTER_CODE = """\

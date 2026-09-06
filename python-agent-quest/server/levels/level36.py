@@ -19,9 +19,12 @@ KNOWLEDGE = """\
   正则把「目标长什么样」写成模式，一行匹配。
 
 2) 核心用法
+
+```plaintext
   import re
   re.findall(r"GD-\\d{6}", text)  # 找出全部，返回列表
   re.search(r"\\d+", text)        # 只找第一个
+```
 
 3) Java 对照
   Java：Pattern.compile(...) 再 Matcher.find()，绕两道弯；

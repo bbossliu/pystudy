@@ -19,18 +19,24 @@ KNOWLEDGE = """\
   f-string 负责「拼出来」，方法族负责「拆开来」。
 
 2) 核心用法
+
+```plaintext
   s.strip()         # 去首尾空白
   s.split(",")      # 按逗号切成列表
   "|".join(parts)   # 列表拼回字符串
   s.replace("a", "b") / s.startswith("查")
   s[1:3]            # 切片：取第 2、3 个字符
+```
 
 3) Java 对照
+
+```plaintext
   strip()          ≈ Java trim() / strip()
   split(",")       ≈ Java split(",")，但返回列表不是数组
   "|".join(list)   ≈ Java String.join("|", list)
   startswith("查") ≈ Java startsWith("查")
   s[1:3]           ≈ Java substring(1, 3)
+```
 
 4) 坑与边界
   Python 字符串不可变（和 Java 一样）：
