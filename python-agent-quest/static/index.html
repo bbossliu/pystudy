@@ -214,6 +214,7 @@ function showLevel(i) {
   document.getElementById("message").textContent = "";
   renderDiagram(lv);
   renderProgress();
+  document.getElementById("content").scrollTop = 0;
 }
 
 function renderKnowledge(lv) {
@@ -302,6 +303,10 @@ runBtn.addEventListener("click", async () => {
         setTimeout(() => showLevel(current + 1), 1500);
       }
     }
+  } catch (e) {
+    const msg = document.getElementById("message");
+    msg.textContent = "网络错误：请求没有发出去，检查服务是不是还在跑，然后重试";
+    msg.className = "fail";
   } finally {
     runBtn.disabled = false;
     runBtn.textContent = "运行";
