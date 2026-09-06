@@ -208,12 +208,13 @@
   .chat-msg {
     max-width: 92%; padding: 8px 12px; border-radius: 10px;
     font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+    min-width: 0; overflow-wrap: break-word;
   }
   .chat-msg.user { align-self: flex-end; background: #89b4fa; color: #1e1e2e; }
   .chat-msg.assistant { align-self: flex-start; background: #313244; }
   /* markdown 渲染后不再依赖 pre-wrap，降级纯文本时保留默认 pre-wrap */
   .chat-msg.assistant.rendered { white-space: normal; }
-  .chat-msg.assistant.rendered pre.hljs { border-radius: 8px; margin: 8px 0; font-size: 12px; }
+  .chat-msg.assistant.rendered pre.hljs { border-radius: 8px; margin: 8px 0; font-size: 12px; max-width: 100%; overflow-x: auto; }
   .chat-msg.assistant.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
   .chat-msg.assistant.rendered p { margin: 4px 0; }
   .chat-msg.error { align-self: flex-start; padding: 2px 8px; color: #f38ba8; font-size: 12px; }
