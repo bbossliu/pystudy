@@ -10,12 +10,28 @@ STORY = (
 
 KNOWLEDGE = """\
 Python 变量不需要声明类型：
-  Java:   String name = "小K";
-  Python: name = "小K"
+
+```java
+// Java
+String name = "小K";
+```
+
+```python
+# Python
+name = "小K"
+```
 
 f-string 是 Python 最常用的字符串拼接方式，在引号前加 f，变量直接写进 {}：
-  Java:   String.format("你是%s，一个%s。", name, role)
-  Python: f"你是{name}，一个{role}。"
+
+```java
+// Java
+String.format("你是%s，一个%s。", name, role)
+```
+
+```python
+# Python
+f"你是{name}，一个{role}。"
+```
 """
 
 STARTER_CODE = """\

@@ -33,6 +33,10 @@
   #message { font-size: 14px; min-height: 22px; }
   #message.pass { color: #a6e3a1; }
   #message.fail { color: #f38ba8; }
+  /* markdown 渲染后不再依赖 pre-wrap（避免 <br> 与换行符叠加出双倍空行），降级纯文本时保留默认 pre-wrap */
+  #knowledge.rendered { white-space: normal; }
+  #knowledge.rendered pre.hljs { border-radius: 6px; margin: 8px 0; font-size: 13px; }
+  #knowledge.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
 </style>
 </head>
 <body>
@@ -61,6 +65,49 @@
 if (window.mermaid) {
   mermaid.initialize({startOnLoad: false, theme: "dark"});
 }
+
+// markdown-it / highlight.js 异步加载（load 事件后再拉取，CDN 慢或挂都不会阻塞页面）；
+// 加载失败时 md 保持 null，知识卡回退为 textContent 纯文本展示
+let md = null;
+
+function loadScript(src) {
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+async function initMarkdown() {
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css";
+  document.head.appendChild(css);
+  const okMd = await loadScript("https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js");
+  const okHl = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js");
+  if (!okMd || !okHl || !window.markdownit) return;
+  md = window.markdownit({
+    breaks: true,   // 纯文本卡片中的换行渲染为 <br>，保持原排版
+    linkify: false,
+    highlight: function (str, lang) {
+      if (window.hljs) {
+        try {
+          const value = (lang && hljs.getLanguage(lang))
+            ? hljs.highlight(str, {language: lang}).value
+            : hljs.highlightAuto(str).value;
+          // 返回 <pre> 开头时 markdown-it 原样输出，借此挂上 .hljs 类
+          return '<pre class="hljs"><code>' + value + "</code></pre>";
+        } catch (e) {}
+      }
+      return "";
+    },
+  });
+  // 异步就绪后重渲染当前关知识卡
+  if (levels.length) renderKnowledge(levels[current]);
+}
+window.addEventListener("load", initMarkdown);
 </script>
 <script>
 let levels = [];
@@ -97,12 +144,25 @@ function showLevel(i) {
   const lv = levels[i];
   document.getElementById("level-title").textContent = "第 " + lv.id + " 关 · " + lv.title;
   document.getElementById("story").textContent = lv.story;
-  document.getElementById("knowledge").textContent = lv.knowledge;
+  renderKnowledge(lv);
   editor.setValue(lv.starter_code);
   document.getElementById("output").textContent = "";
   document.getElementById("message").textContent = "";
   renderDiagram(lv);
   renderProgress();
+}
+
+function renderKnowledge(lv) {
+  const box = document.getElementById("knowledge");
+  if (md) {
+    // markdown-it 默认 html: false，原文中的 HTML 一律转义，无 XSS 风险
+    box.innerHTML = md.render(lv.knowledge);
+    box.classList.add("rendered");
+  } else {
+    // 降级：CDN 加载失败时维持纯文本 + pre-wrap 的旧行为
+    box.textContent = lv.knowledge;
+    box.classList.remove("rendered");
+  }
 }
 
 function renderDiagram(lv) {

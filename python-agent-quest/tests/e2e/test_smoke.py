@@ -59,6 +59,19 @@ def test_level15_diagram_renders_svg(server):
         browser.close()
 
 
+def test_level1_knowledge_highlighted(server):
+    # 第 1 关知识卡为 Markdown 围栏代码块，经 highlight.js 渲染后应出现 .hljs 元素
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(BASE)
+        page.wait_for_selector("#level-title")
+        assert "第 1 关" in page.inner_text("#level-title")
+        # markdown-it / highlight.js 为异步加载，留出 CDN 拉取时间
+        page.wait_for_selector("#knowledge .hljs", timeout=20000)
+        browser.close()
+
+
 def test_navigate_back_to_passed_level(server):
     from server.levels.loader import load_levels
 
