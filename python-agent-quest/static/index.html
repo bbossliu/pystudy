@@ -118,6 +118,55 @@
     #content > :nth-child(5) { grid-column: 2; grid-row: 4; }
     #content > :nth-child(6) { grid-column: 2; grid-row: 5; }
   }
+  /* ---- 期末考试按钮（顶栏右侧） ---- */
+  #exam-btn {
+    padding: 8px 16px; border: none; border-radius: 8px;
+    background: #f9e2af; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap;
+  }
+  #exam-btn:hover:not(:disabled) { background: #fae8c4; }
+  #exam-btn:disabled { background: #313244; color: #6c7086; cursor: not-allowed; }
+  /* ---- 考试视图（与 #content 平级，display 切换，不动关卡区状态） ---- */
+  #exam-view {
+    flex: 1; overflow-y: auto; min-height: 0;
+    padding: 20px 24px 60px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .exam-q .stem { font-size: 14px; line-height: 1.7; white-space: pre-wrap; margin-bottom: 12px; }
+  .exam-q label {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 6px;
+    font-size: 14px; line-height: 1.5; cursor: pointer;
+  }
+  .exam-q label:hover { background: #3b3d52; }
+  .exam-q input[type="radio"] { accent-color: #89b4fa; }
+  #exam-submit, .exam-action {
+    padding: 11px 24px; border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e;
+    font-size: 15px; font-weight: bold; cursor: pointer;
+  }
+  #exam-submit:hover, .exam-action:hover { background: #b4befe; }
+  #exam-score { font-size: 56px; font-weight: bold; line-height: 1.1; }
+  #exam-score.pass { color: #a6e3a1; }
+  #exam-score.fail { color: #f38ba8; }
+  #exam-verdict { font-size: 18px; margin-top: 6px; }
+  #exam-graduate { margin-top: 10px; font-size: 14px; line-height: 1.7; color: #f9e2af; white-space: pre-wrap; }
+  .review-card { border-left: 4px solid #6c7086; }
+  .review-card.right { border-left-color: #a6e3a1; }
+  .review-card.wrong { border-left-color: #f38ba8; }
+  .review-mark { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+  .review-card.right .review-mark { color: #a6e3a1; }
+  .review-card.wrong .review-mark { color: #f38ba8; }
+  .review-line { font-size: 13px; line-height: 1.7; color: #a6adc8; }
+  .review-line b { color: #cdd6f4; font-weight: bold; }
+  .review-explain { font-size: 13px; line-height: 1.7; margin-top: 8px; color: #cdd6f4; }
+  .review-goto {
+    margin-top: 10px; padding: 7px 14px; border: none; border-radius: 6px;
+    background: #f9e2af; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer;
+  }
+  .review-goto:hover { background: #fae8c4; }
+  .exam-actions-row { display: flex; gap: 12px; }
   /* ---- 助教聊天：右下角悬浮按钮 + 可折叠面板 ---- */
   #chat-fab {
     position: fixed; right: 24px; bottom: 24px; z-index: 50;
@@ -193,6 +242,7 @@
     <div id="progress-bar"><div id="progress-fill"></div></div>
     <div id="progress"></div>
   </div>
+  <button id="exam-btn" disabled>期末考试</button>
 </header>
 <main>
   <aside id="sidebar">
@@ -206,6 +256,10 @@
     <div class="card" id="editor-card"><textarea id="code"></textarea><button id="run-btn">运行</button></div>
     <div class="card"><h3>输出</h3><pre id="output"></pre></div>
     <div id="message"></div>
+  </section>
+  <section id="exam-view" style="display:none">
+    <div id="exam-paper"></div>
+    <div id="exam-result" style="display:none"></div>
   </section>
 </main>
 <button id="chat-fab">💬 问助教</button>
@@ -367,6 +421,7 @@ function renderProgress() {
     li.addEventListener("click", () => showLevel(i));
     ul.appendChild(li);
   });
+  updateExamBtn();
 }
 
 // 过关时进度条做一次 0.3s 亮度脉冲；先移除再加类并强制 reflow，保证连过两关也能重触发
@@ -525,6 +580,220 @@ async function initChat() {
   renderChatSelectors();
 }
 initChat();
+
+/* ---- 期末考试 ---- */
+// 视图切换只动 display：考试视图打开/关闭不碰关卡区任何状态，
+// #run-btn 等既有元素 ID 与 e2e 选择器全部保持不变
+const examBtn = document.getElementById("exam-btn");
+const examView = document.getElementById("exam-view");
+const examPaper = document.getElementById("exam-paper");
+const examResult = document.getElementById("exam-result");
+const contentEl = document.getElementById("content");
+const sidebarEl = document.getElementById("sidebar");
+
+function getExamBest() {
+  const v = JSON.parse(localStorage.getItem("quest_exam_best") || "null");
+  return typeof v === "number" ? v : null;
+}
+
+function updateExamBtn() {
+  const full = levels.length > 0 && getProgress().length >= levels.length;
+  examBtn.disabled = !full;
+  examBtn.title = full ? "20 道选择题，80 分通过" : "通关全部关卡后解锁";
+  const best = getExamBest();
+  examBtn.textContent = best === null ? "期末考试" : "期末考试 · " + best;
+}
+
+async function openExam() {
+  try {
+    const resp = await fetch("/api/exam");
+    if (!resp.ok) throw new Error("bad status");
+    renderExamPaper(await resp.json());
+  } catch (e) {
+    examPaper.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "card";
+    card.textContent = "试卷加载失败：检查服务是不是还在跑，然后点顶栏「期末考试」重试";
+    examPaper.appendChild(card);
+  }
+  examResult.style.display = "none";
+  examResult.innerHTML = "";
+  examPaper.style.display = "";
+  contentEl.style.display = "none";
+  sidebarEl.style.display = "none";
+  examView.style.display = "flex";
+  examView.scrollTop = 0;
+}
+
+function closeExam() {
+  examView.style.display = "none";
+  // 恢复成空字符串，交还给样式表里的 flex/grid 规则
+  contentEl.style.display = "";
+  sidebarEl.style.display = "";
+}
+
+function renderExamPaper(questions) {
+  examPaper.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "card";
+  const h2 = document.createElement("h2");
+  h2.textContent = "期末考试";
+  const tip = document.createElement("p");
+  tip.textContent = "20 道选择题，每题 5 分，80 分通过。交卷后能看到每题的对错和解析。";
+  head.appendChild(h2);
+  head.appendChild(tip);
+  examPaper.appendChild(head);
+  questions.forEach((q, qi) => {
+    const card = document.createElement("div");
+    card.className = "card exam-q";
+    card.dataset.qid = q.id;
+    const stem = document.createElement("div");
+    stem.className = "stem";
+    stem.textContent = "第 " + (qi + 1) + " 题 · " + q.question;
+    card.appendChild(stem);
+    q.options.forEach((opt, oi) => {
+      const label = document.createElement("label");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "exam-q-" + q.id;
+      radio.value = oi;
+      const span = document.createElement("span");
+      span.textContent = "ABCD"[oi] + ". " + opt;
+      label.appendChild(radio);
+      label.appendChild(span);
+      card.appendChild(label);
+    });
+    examPaper.appendChild(card);
+  });
+  const row = document.createElement("div");
+  row.className = "exam-actions-row";
+  const submitBtn = document.createElement("button");
+  submitBtn.id = "exam-submit";
+  submitBtn.textContent = "交卷";
+  submitBtn.addEventListener("click", submitExam);
+  const quit = document.createElement("button");
+  quit.className = "exam-action";
+  quit.textContent = "返回关卡";
+  quit.addEventListener("click", closeExam);
+  row.appendChild(submitBtn);
+  row.appendChild(quit);
+  examPaper.appendChild(row);
+}
+
+async function submitExam() {
+  const answers = {};
+  let unanswered = 0;
+  examPaper.querySelectorAll(".exam-q").forEach(card => {
+    const checked = card.querySelector("input[type=radio]:checked");
+    if (checked) {
+      answers[card.dataset.qid] = Number(checked.value);
+    } else {
+      unanswered++;
+    }
+  });
+  if (unanswered > 0 &&
+      !confirm("还有 " + unanswered + " 题没作答，未作答按错处理，确定交卷吗？")) {
+    return;
+  }
+  try {
+    const resp = await fetch("/api/exam/submit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({answers}),
+    });
+    if (!resp.ok) throw new Error("bad status");
+    renderExamResult(await resp.json());
+  } catch (e) {
+    alert("网络错误：交卷没有发出去，检查服务是不是还在跑，然后重试");
+  }
+}
+
+function renderExamResult(data) {
+  // 最好成绩只升不降
+  const best = getExamBest();
+  if (best === null || data.score > best) {
+    localStorage.setItem("quest_exam_best", JSON.stringify(data.score));
+  }
+  updateExamBtn();
+  examPaper.style.display = "none";
+  examResult.style.display = "";
+  examResult.innerHTML = "";
+
+  const summary = document.createElement("div");
+  summary.className = "card";
+  const score = document.createElement("div");
+  score.id = "exam-score";
+  score.className = data.passed ? "pass" : "fail";
+  score.textContent = data.score + " 分";
+  summary.appendChild(score);
+  const verdict = document.createElement("div");
+  verdict.id = "exam-verdict";
+  verdict.textContent = data.passed
+    ? "通过（80 分线）"
+    : "未通过，看看下面的错题解析，回去复习对应关卡再来一次";
+  summary.appendChild(verdict);
+  if (data.passed) {
+    const grad = document.createElement("div");
+    grad.id = "exam-graduate";
+    grad.textContent =
+      "毕业啦！41 关闯关 + 期末考试全部拿下——从 f-string 到手搓 Agent 主循环，" +
+      "再到 deepagents 源码和 dsh 六包，你已经集齐了独立写一个生产级 Agent 的全部地基。" +
+      "去造你自己的 Agent 吧！";
+    summary.appendChild(grad);
+  }
+  const row = document.createElement("div");
+  row.className = "exam-actions-row";
+  row.style.marginTop = "14px";
+  const retry = document.createElement("button");
+  retry.className = "exam-action";
+  retry.textContent = "再考一次";
+  retry.addEventListener("click", openExam);
+  const back = document.createElement("button");
+  back.className = "exam-action";
+  back.textContent = "返回关卡";
+  back.addEventListener("click", closeExam);
+  row.appendChild(retry);
+  row.appendChild(back);
+  summary.appendChild(row);
+  examResult.appendChild(summary);
+
+  data.results.forEach((r, i) => {
+    const card = document.createElement("div");
+    card.className = "card review-card " + (r.correct ? "right" : "wrong");
+    const mark = document.createElement("div");
+    mark.className = "review-mark";
+    mark.textContent = "第 " + (i + 1) + " 题 · " + (r.correct ? "✓ 答对" : "✗ 答错");
+    card.appendChild(mark);
+    const line = document.createElement("div");
+    line.className = "review-line";
+    const fmt = v => (v === null || v === undefined) ? "未作答" : "ABCD"[v];
+    const b1 = document.createElement("b");
+    b1.textContent = fmt(r.your_choice);
+    const b2 = document.createElement("b");
+    b2.textContent = "ABCD"[r.correct_choice];
+    line.append("你的选择：", b1, "　正确答案：", b2);
+    card.appendChild(line);
+    const explain = document.createElement("div");
+    explain.className = "review-explain";
+    explain.textContent = "解析：" + r.explanation;
+    card.appendChild(explain);
+    if (!r.correct) {
+      const gotoBtn = document.createElement("button");
+      gotoBtn.className = "review-goto";
+      gotoBtn.textContent = "回到第 " + r.level_id + " 关复习";
+      gotoBtn.addEventListener("click", () => {
+        closeExam();
+        const idx = levels.findIndex(lv => lv.id === r.level_id);
+        if (idx >= 0) showLevel(idx);
+      });
+      card.appendChild(gotoBtn);
+    }
+    examResult.appendChild(card);
+  });
+  examView.scrollTop = 0;
+}
+
+examBtn.addEventListener("click", openExam);
 
 // 跨越 1280px 断点时编辑器宽度变化，刷新 CodeMirror 的度量
 window.addEventListener("resize", () => editor.refresh());

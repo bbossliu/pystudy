@@ -7,6 +7,7 @@ from openai import AuthenticationError
 from pydantic import BaseModel
 
 from server.chat import PROVIDERS, available_providers, chat, configured_provider
+from server.exam import grade, public_questions
 from server.levels.loader import load_levels
 from server.runner import run_code
 
@@ -64,6 +65,22 @@ def run(req: RunRequest):
         }
     finally:
         shutil.rmtree(result.workdir, ignore_errors=True)
+
+
+class ExamSubmitRequest(BaseModel):
+    # 形如 {"1": 2}：题 id → 选择的选项下标；未作答的题缺席，按错处理
+    answers: dict[str, int] = {}
+
+
+@app.get("/api/exam")
+def get_exam():
+    # 只发题干和选项，answer/explanation 永不出现在这个响应里（防泄漏红线）
+    return public_questions()
+
+
+@app.post("/api/exam/submit")
+def submit_exam(req: ExamSubmitRequest):
+    return grade(req.answers)
 
 
 @app.get("/")

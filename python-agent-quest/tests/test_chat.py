@@ -154,6 +154,19 @@ def test_chat_success_glm_uses_glm_base_url(monkeypatch):
     assert captured["model"] == "glm-4.7"
 
 
+def test_chat_truncates_long_code_in_system_prompt(monkeypatch):
+    # 学生代码注入 system prompt 前必须截断，防超长代码打爆 token
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DUMMY_KEY)
+    captured = {}
+    monkeypatch.setattr(chat_mod, "OpenAI", _fake_openai(captured))
+    long_code = "a = 1\n" * 2000  # 12000 字符，远超 4000 上限
+    resp = client.post("/api/chat", json=_chat_payload(code=long_code))
+    assert resp.status_code == 200
+    system = captured["messages"][0]["content"]
+    assert long_code not in system
+    assert long_code[:4000] in system
+
+
 # ---- API 报错路径 ----
 
 

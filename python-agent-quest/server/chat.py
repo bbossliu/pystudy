@@ -40,6 +40,9 @@ SYSTEM_TEMPLATE = """\
 
 结合关卡内容和学生的代码回答问题。如果学生直接要通关答案，给提示和思路，不要贴完整答案。"""
 
+# 学生代码注入 system prompt 前的长度上限，防超长代码打爆 token
+CODE_MAX_CHARS = 4000
+
 
 def available_providers() -> list[dict]:
     """只返回 env key 已配置的提供商。"""
@@ -64,7 +67,7 @@ def build_system_prompt(level, code: str) -> str:
         title=level.title,
         story=level.story,
         knowledge=level.knowledge,
-        code=code,
+        code=code[:CODE_MAX_CHARS],
     )
 
 
