@@ -55,6 +55,7 @@
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 if (window.mermaid) {
@@ -119,7 +120,7 @@ function renderDiagram(lv) {
   if (window.mermaid) {
     pre.className = "mermaid";
     box.appendChild(pre);
-    mermaid.run({nodes: [pre]}).catch(() => {});
+    mermaid.run({nodes: [pre]}).catch(err => console.error("mermaid 渲染失败:", err));
   } else {
     // 降级：mermaid CDN 加载失败时直接展示源码（等宽文本）
     box.appendChild(pre);

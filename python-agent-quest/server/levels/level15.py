@@ -109,8 +109,10 @@ DIAGRAM = """\
 graph LR
     REQ["请求 request"] --> A["MiddlewareA<br>wrap_model_call"]
     A --> B["MiddlewareB<br>wrap_model_call"]
-    B --> LLM["LLM"]
-    LLM -. "响应原路返回" .-> B2["MiddlewareB<br>后处理"]
+    B --> C["MiddlewareC<br>wrap_model_call"]
+    C --> LLM["LLM"]
+    LLM -. "响应原路返回" .-> C2["MiddlewareC<br>后处理"]
+    C2 -.-> B2["MiddlewareB<br>后处理"]
     B2 -.-> A2["MiddlewareA<br>后处理"]
     A2 -.-> RESP["响应"]
 """
