@@ -98,6 +98,92 @@
   #knowledge.rendered { white-space: normal; }
   #knowledge.rendered pre.hljs { border-radius: 8px; margin: 10px 0; font-size: 13px; line-height: 1.6; }
   #knowledge.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
+  /* ---- 宽屏（≥1280px）双栏：左栏剧情/知识卡/图，右栏编辑器 sticky ---- */
+  @media (min-width: 1280px) {
+    #content {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      align-content: start;
+    }
+    #content > :nth-child(1) { grid-column: 1; grid-row: 1; }
+    #content > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    #content > :nth-child(3) { grid-column: 1; grid-row: 3; }
+    /* 编辑器跨左栏三行，sticky 范围 = 左栏总高，滚动剧情/知识卡时编辑器钉在顶部 */
+    #editor-card {
+      grid-column: 2; grid-row: 1 / 4;
+      align-self: start;
+      position: sticky; top: 20px;
+    }
+    #content > :nth-child(5) { grid-column: 2; grid-row: 4; }
+    #content > :nth-child(6) { grid-column: 2; grid-row: 5; }
+  }
+  /* ---- 助教聊天：右下角悬浮按钮 + 可折叠面板 ---- */
+  #chat-fab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 50;
+    padding: 12px 18px; border: none; border-radius: 999px;
+    background: #89b4fa; color: #1e1e2e; font-size: 14px; font-weight: bold;
+    cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+  }
+  #chat-fab:hover { background: #b4befe; }
+  #chat-panel {
+    position: fixed; right: 24px; bottom: 84px; z-index: 50;
+    width: 380px; max-width: calc(100vw - 48px);
+    height: 520px; max-height: calc(100vh - 140px);
+    display: flex; flex-direction: column;
+    background: #181825; border: 1px solid #313244; border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .5); overflow: hidden;
+  }
+  #chat-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid #313244;
+  }
+  #chat-head select {
+    flex: 1; min-width: 0; padding: 6px 8px;
+    background: #313244; color: #cdd6f4;
+    border: none; border-radius: 6px; font-size: 12px;
+  }
+  #chat-close {
+    background: none; border: none; padding: 0 4px;
+    color: #6c7086; font-size: 18px; cursor: pointer;
+  }
+  #chat-close:hover { color: #cdd6f4; }
+  #chat-note {
+    padding: 10px 12px; font-size: 12px; line-height: 1.6;
+    color: #f9e2af; border-bottom: 1px solid #313244;
+  }
+  #chat-messages {
+    flex: 1; overflow-y: auto; padding: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .chat-msg {
+    max-width: 92%; padding: 8px 12px; border-radius: 10px;
+    font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+  }
+  .chat-msg.user { align-self: flex-end; background: #89b4fa; color: #1e1e2e; }
+  .chat-msg.assistant { align-self: flex-start; background: #313244; }
+  /* markdown 渲染后不再依赖 pre-wrap，降级纯文本时保留默认 pre-wrap */
+  .chat-msg.assistant.rendered { white-space: normal; }
+  .chat-msg.assistant.rendered pre.hljs { border-radius: 8px; margin: 8px 0; font-size: 12px; }
+  .chat-msg.assistant.rendered code { font-family: "JetBrains Mono", Menlo, monospace; }
+  .chat-msg.assistant.rendered p { margin: 4px 0; }
+  .chat-msg.error { align-self: flex-start; padding: 2px 8px; color: #f38ba8; font-size: 12px; }
+  #chat-input-row {
+    display: flex; gap: 8px; padding: 10px 12px;
+    border-top: 1px solid #313244;
+  }
+  #chat-input {
+    flex: 1; padding: 9px 10px;
+    background: #313244; color: #cdd6f4;
+    border: none; border-radius: 8px; font-size: 13px;
+  }
+  #chat-input:focus { outline: 1px solid #89b4fa; }
+  #chat-send {
+    padding: 0 14px; border: none; border-radius: 8px;
+    background: #89b4fa; color: #1e1e2e;
+    font-size: 13px; font-weight: bold; cursor: pointer;
+  }
+  #chat-send:disabled { opacity: .6; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -122,6 +208,20 @@
     <div id="message"></div>
   </section>
 </main>
+<button id="chat-fab">💬 问助教</button>
+<div id="chat-panel" style="display:none">
+  <div id="chat-head">
+    <select id="chat-provider"></select>
+    <select id="chat-model"></select>
+    <button id="chat-close" title="收起">×</button>
+  </div>
+  <div id="chat-note" style="display:none">未配置任何模型 key，先在服务端环境变量里配置（如 DEEPSEEK_API_KEY），再重启服务</div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <input id="chat-input" placeholder="问点这关的问题…">
+    <button id="chat-send">发送</button>
+  </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -314,6 +414,120 @@ runBtn.addEventListener("click", async () => {
 });
 
 loadLevels();
+
+/* ---- 助教聊天面板 ---- */
+// 对话历史只存内存（DOM + 本数组），刷新即清空；后端是单轮调用，历史仅用于展示
+const chatHistory = [];
+let chatProviders = [];
+
+const chatFab = document.getElementById("chat-fab");
+const chatPanel = document.getElementById("chat-panel");
+const chatProviderSel = document.getElementById("chat-provider");
+const chatModelSel = document.getElementById("chat-model");
+const chatNote = document.getElementById("chat-note");
+const chatMessages = document.getElementById("chat-messages");
+const chatInput = document.getElementById("chat-input");
+const chatSend = document.getElementById("chat-send");
+
+chatFab.addEventListener("click", () => { chatPanel.style.display = "flex"; chatFab.style.display = "none"; });
+document.getElementById("chat-close").addEventListener("click", () => {
+  chatPanel.style.display = "none";
+  chatFab.style.display = "";
+});
+
+function renderChatSelectors() {
+  chatProviderSel.innerHTML = "";
+  chatProviders.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    chatProviderSel.appendChild(opt);
+  });
+  renderModelOptions();
+  const empty = chatProviders.length === 0;
+  chatNote.style.display = empty ? "" : "none";
+  chatInput.disabled = empty;
+  chatSend.disabled = empty;
+}
+
+function renderModelOptions() {
+  const p = chatProviders.find(p => p.id === chatProviderSel.value);
+  chatModelSel.innerHTML = "";
+  (p ? p.models : []).forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    chatModelSel.appendChild(opt);
+  });
+}
+chatProviderSel.addEventListener("change", renderModelOptions);
+
+function appendChatMsg(role, text) {
+  chatHistory.push({role, text});
+  const div = document.createElement("div");
+  div.className = "chat-msg " + role;
+  if (role === "assistant" && md) {
+    // markdown-it 默认 html: false，无 XSS 风险
+    div.innerHTML = md.render(text);
+    div.classList.add("rendered");
+  } else {
+    div.textContent = text;
+  }
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function sendChat() {
+  const question = chatInput.value.trim();
+  if (!question || !chatProviders.length) return;
+  appendChatMsg("user", question);
+  chatInput.value = "";
+  // loading 态：禁用 + 文案，响应返回后（finally）恢复
+  chatSend.disabled = true;
+  chatSend.textContent = "发送中…";
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        provider: chatProviderSel.value,
+        model: chatModelSel.value,
+        level_id: levels[current].id,
+        code: editor.getValue(),
+        question: question,
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      appendChatMsg("assistant", data.reply);
+    } else {
+      appendChatMsg("error", data.detail || "助教服务出错了，稍后再试");
+    }
+  } catch (e) {
+    appendChatMsg("error", "网络错误：请求没有发出去，检查服务是不是还在跑，然后重试");
+  } finally {
+    chatSend.disabled = false;
+    chatSend.textContent = "发送";
+  }
+}
+chatSend.addEventListener("click", sendChat);
+chatInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") sendChat();
+});
+
+async function initChat() {
+  try {
+    const resp = await fetch("/api/chat/providers");
+    chatProviders = await resp.json();
+  } catch (e) {
+    chatProviders = [];
+  }
+  renderChatSelectors();
+}
+initChat();
+
+// 跨越 1280px 断点时编辑器宽度变化，刷新 CodeMirror 的度量
+window.addEventListener("resize", () => editor.refresh());
 </script>
 </body>
 </html>
