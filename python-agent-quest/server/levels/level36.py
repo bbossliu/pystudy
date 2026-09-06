@@ -30,7 +30,8 @@ KNOWLEDGE = """\
 
 4) 坑与边界
   模式字符串前一定加 r（原始字符串）：
-  不写 r，"\\d" 的反斜杠会先被 Python 自己吃掉。
+  不写 r，"\\b" 会先被 Python 当成回退符吃掉，
+  模式里想要的「单词边界」就没了。
   findall 没匹配时返回空列表 []，不报错——记得判空。
   下图：正则 GD-\\d{6} 分三段各管什么。
 
@@ -102,7 +103,8 @@ def judge(source: str, result: RunResult) -> tuple[bool, str]:
     tree = ast.parse(source)
     if not _has_re_call(tree):
         return False, (
-            "结果对了，但没看到 re——本关要用正则 "
-            're.findall(r"GD-\\d{6}", text)，别手写 find/切片硬抠'
+            "结果对了，但没看到 findall/search 等匹配调用——"
+            "光写 re.compile 不算数，要用 re.findall / search / "
+            "finditer 真正把结果匹配出来"
         )
     return True, "过关！一个模式抠出全部工单号——正则这只手术刀你拿稳了。"
